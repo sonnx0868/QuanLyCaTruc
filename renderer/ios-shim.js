@@ -1,180 +1,155 @@
-// ==========================================================
-// ==   IOS-SHIM.JS (FIXED) - Dùng LocalStorage cho Mobile ==
-// ==========================================================
+// =================================================================
+// ==   IOS-SHIM.JS (CLOUD VERSION) - Kết nối Server Sonnx-Pod    ==
+// =================================================================
 
-// Chỉ chạy khi không có Electron (tức là đang chạy trên iOS/Android/Web)
-// Hoặc ghi đè luôn nếu bridge.js bị lỗi import
 (function() {
-    console.log("📱 Mobile/Web Mode: Kích hoạt giả lập API qua LocalStorage");
+    console.log("☁️ Kích hoạt chế độ Cloud API cho Mobile/Web");
 
-    const STORE_KEY = 'printerval_roster_data';
-    const API_TOKEN = "f7a5a50d9c6f3218c3baf7b46d76556a";
+    const SERVER_URL = 'https://employee-roster-api.sonnx-pod.workers.dev';
+    const API_TOKEN = "f7a5a50d9c6f3218c3baf7b46d76556a"; // Token dùng cho API thống kê
 
-    // --- Helpers để đọc/ghi dữ liệu vào bộ nhớ điện thoại ---
-    function getStore() {
+    // --- 1. Hàm gọi API (Fetch Wrapper) ---
+    // Hàm này thay thế cho thư viện import bị lỗi
+    async function j(method, path, body) {
         try {
-            const raw = localStorage.getItem(STORE_KEY);
-            return raw ? JSON.parse(raw) : {};
+            const r = await fetch(`${SERVER_URL}${path}`, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            if (!r.ok) {
+                // Nếu server báo lỗi (ví dụ chưa có data ngày đó), trả về null hoặc object rỗng
+                return null;
+            }
+            return await r.json();
         } catch (e) {
-            console.error('Lỗi đọc cache:', e);
-            return {};
+            console.error(`Lỗi kết nối Cloud [${path}]:`, e);
+            return null;
         }
     }
 
-    function saveStore(data) {
-        try {
-            localStorage.setItem(STORE_KEY, JSON.stringify(data));
-        } catch (e) {
-            console.error('Lỗi lưu cache:', e);
-        }
+    // --- 2. Helper LocalStorage (Cho những tính năng Server không hỗ trợ) ---
+    // Dùng để lưu lịch sử quay số, vì API server không thấy có endpoint này
+    function localGet(key) {
+        try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; }
+    }
+    function localSet(key, val) {
+        localStorage.setItem(key, JSON.stringify(val));
     }
 
-    // --- Định nghĩa window.api (Khớp hoàn toàn với renderer.js) ---
+    // --- 3. Định nghĩa window.api (Giả lập Electron IPC) ---
     window.api = {
-        // 1. Load danh sách nhân viên & Team
+        
+        // === QUAN TRỌNG: Lấy nhân viên từ Cloud ===
         loadRoster: async () => {
-            const data = getStore();
-            // Dữ liệu mặc định nếu chưa có gì
-            const defaultTeams = [
-                { name: 'Lead', color: '#dc2626' },
-                { name: 'Vẽ', color: '#a855f7' },
-                { name: 'Lịch', color: '#2563eb' },
-                { name: 'Đào tạo', color: '#16a34a' },
-                { name: '2D', color: '#6b7280' },
-            ];
-            return { 
-                ok: true, 
-                employees: data.employees || [], 
-                teams: (data.teams && data.teams.length) ? data.teams : defaultTeams 
-            };
-        },
-
-        // 2. Lưu danh sách
-        saveRoster: async ({ employees, teams }) => {
-            const data = getStore();
-            data.employees = employees;
-            data.teams = teams;
-            saveStore(data);
-            return { ok: true };
-        },
-
-        // 3. Load trạng thái ngày (OFF/OT...)
-        loadDayStatus: async ({ dateISO }) => {
-            const data = getStore();
-            const days = data.days || {};
-            return { ok: true, statuses: (days[dateISO] || {}).statuses || {} };
-        },
-
-        // 4. Lưu trạng thái ngày
-        saveDayStatus: async ({ dateISO, statuses }) => {
-            const data = getStore();
-            data.days = data.days || {};
-            // Giữ lại pool nếu đang có, chỉ update statuses
-            const currentDay = data.days[dateISO] || {};
-            data.days[dateISO] = { ...currentDay, statuses };
-            saveStore(data);
-            return { ok: true };
-        },
-
-        // 5. Load lịch sử trực (Để quay số công bằng)
-        loadDutyHistory: async () => {
-            const data = getStore();
-            return { ok: true, history: data.dutyHistory || {} };
-        },
-
-        // 6. Lưu lịch sử trực
-        saveDutyHistory: async (history) => {
-            const data = getStore();
-            data.dutyHistory = history;
-            saveStore(data);
-            return { ok: true };
-        },
-
-        // 7. Load danh sách quay số (Weekend Pool)
-        loadWeekendPool: async ({ dateISO }) => {
-            const data = getStore();
-            const dayData = (data.days || {})[dateISO];
-            return { 
-                ok: true, 
-                remaining: dayData?.weekendPoolRemaining || null,
-                builtFor: dayData?.weekendPoolBuiltFor || null
-            };
-        },
-
-        // 8. Lưu danh sách quay số
-        saveWeekendPool: async ({ dateISO, remaining, builtFor }) => {
-            const data = getStore();
-            data.days = data.days || {};
-            data.days[dateISO] = data.days[dateISO] || { statuses: {} };
-            
-            data.days[dateISO].weekendPoolRemaining = remaining;
-            data.days[dateISO].weekendPoolBuiltFor = builtFor;
-            
-            saveStore(data);
-            return { ok: true };
-        },
-
-        // 9. Copy Text (Clipboard)
-        copyText: async (text) => {
+            console.log("Đang tải danh sách từ Cloud...");
             try {
-                // Thử dùng API chuẩn
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(text);
-                } else {
-                    // Fallback cho một số webview cũ
-                    const textArea = document.createElement("textarea");
-                    textArea.value = text;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(textArea);
-                }
-                return { ok: true };
+                // Gọi song song cả API lấy nhân viên và API lấy Team
+                const [emps, teams] = await Promise.all([
+                    j('GET', '/employees'),
+                    j('GET', '/teams')
+                ]);
+
+                // Nếu Cloud chưa có team, dùng mặc định
+                const defaultTeams = [
+                    { name: 'Lead', color: '#dc2626' },
+                    { name: 'Vẽ', color: '#a855f7' },
+                    { name: 'Lịch', color: '#2563eb' },
+                    { name: 'Đào tạo', color: '#16a34a' },
+                    { name: '2D', color: '#6b7280' },
+                ];
+
+                return { 
+                    ok: true, 
+                    employees: emps || [], 
+                    teams: (teams && teams.length) ? teams : defaultTeams 
+                };
             } catch (e) {
-                console.warn('Copy failed:', e);
-                return { ok: false };
+                alert("Không tải được dữ liệu từ Server. Kiểm tra mạng!");
+                return { ok: false, employees: [], teams: [] };
             }
         },
 
-        // 10. Xuất file (Trên mobile chỉ hiện alert hoặc copy)
-        exportTxt: async ({ content }) => {
-            await window.api.copyText(content);
-            alert("Đã copy nội dung báo cáo vào bộ nhớ đệm!\nBạn có thể dán sang ghi chú.");
+        // === Lưu nhân viên lên Cloud ===
+        saveRoster: async ({ employees, teams }) => {
+            console.log("Đang lưu danh sách lên Cloud...");
+            // Gọi API Bulk Replace và Save Teams
+            await Promise.all([
+                j('PUT', '/employees', employees),
+                j('PUT', '/teams', { teams })
+            ]);
             return { ok: true };
         },
-        exportCsv: async () => {
-            alert("Tính năng CSV chưa hỗ trợ trên Mobile."); 
-            return { ok: false };
+
+        // === Lấy trạng thái điểm danh (OFF/OT) từ Cloud ===
+        loadDayStatus: async ({ dateISO }) => {
+            const data = await j('GET', `/day-status/${dateISO}`);
+            return { ok: true, statuses: data?.statuses || {} };
         },
 
-        // 11. Cài đặt Mini Mode (Không có tác dụng trên mobile)
-        setMiniMode: async () => { 
-            console.log('Mobile: setMiniMode ignored'); 
+        // === Lưu trạng thái điểm danh lên Cloud ===
+        saveDayStatus: async ({ dateISO, statuses }) => {
+            await j('PUT', `/day-status/${dateISO}`, { statuses });
+            return { ok: true };
         },
 
-        // 12. Lấy thống kê từ Server (Fetch trực tiếp)
+        // --- Các phần dưới này lưu ở LocalStorage (Do server thiếu API) ---
+        
+        loadDutyHistory: async () => {
+            return { ok: true, history: localGet('dutyHistory') };
+        },
+
+        saveDutyHistory: async (history) => {
+            localSet('dutyHistory', history);
+            return { ok: true };
+        },
+
+        loadWeekendPool: async ({ dateISO }) => {
+            const allDays = localGet('weekend_pools');
+            const dayData = allDays[dateISO] || {};
+            return { ok: true, remaining: dayData.remaining, builtFor: dayData.builtFor };
+        },
+
+        saveWeekendPool: async ({ dateISO, remaining, builtFor }) => {
+            const allDays = localGet('weekend_pools');
+            allDays[dateISO] = { remaining, builtFor };
+            localSet('weekend_pools', allDays);
+            return { ok: true };
+        },
+
+        // --- Các tiện ích khác (Giữ nguyên) ---
+        copyText: async (text) => {
+            if (navigator.clipboard) await navigator.clipboard.writeText(text);
+            return { ok: true };
+        },
+        exportTxt: async ({ content }) => {
+            await window.api.copyText(content);
+            alert("Đã copy báo cáo vào bộ nhớ tạm!");
+            return { ok: true };
+        },
+        exportCsv: async () => { alert("Chưa hỗ trợ CSV"); return { ok: false }; },
+        setMiniMode: async () => {},
+
         getDesignJobStats: async ({ from, to }) => {
             try {
                 const url = `https://printerval.com/central/service/pod/design-job-stats/find?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-                const res = await fetch(url, {
-                    method: 'GET',
-                    headers: { 
-                        "accept": "application/json", 
-                        "token": API_TOKEN 
-                    }
-                });
-                if (!res.ok) throw new Error('Lỗi kết nối Server');
-                const json = await res.json();
-                return { ok: true, data: { result: json } };
-            } catch (error) {
-                console.error('Stats error:', error);
-                return { ok: false, error: error.message };
+                const res = await fetch(url, { headers: { "accept": "application/json", "token": API_TOKEN } });
+                return { ok: true, data: { result: await res.json() } };
+            } catch (e) {
+                return { ok: false, error: e.message };
             }
         }
     };
 
-    // Mock window.cloud để tránh lỗi nếu renderer có gọi (dù mobile ít dùng)
-    window.cloud = null; 
+    // Mock window.cloud để renderer.js không bị lỗi nếu lỡ gọi
+    window.cloud = {
+        listEmployees: () => j('GET', '/employees'),
+        bulkReplace: (list) => j('PUT', '/employees', list),
+        getTeams: () => j('GET', '/teams'),
+        saveTeams: (teams) => j('PUT', '/teams', { teams }),
+        getDayStatus: (d) => j('GET', `/day-status/${d}`),
+        saveDayStatus: (d, s) => j('PUT', `/day-status/${d}`, { statuses: s }),
+    };
 
-    console.log("✅ IOS-SHIM: window.api đã sẵn sàng!");
+    console.log("✅ IOS-SHIM: Đã kết nối Server Cloud!");
 })();
