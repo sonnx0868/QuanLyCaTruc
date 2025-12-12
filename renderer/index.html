@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Roster Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev">
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <div id="miniModeBg"></div>
+
+  <header class="appbar">
+    <div class="appbar-left">
+      <div class="app-logo">🛡️</div>
+      <div class="appbar-title">
+        <h1>Quản lý Ca Trực</h1>
+        <button id="btnOpenTeamDialog" class="icon-btn-ghost" title="Cài đặt đội">⚙️</button>
+      </div>
+    </div>
+    
+    <div class="appbar-center">
+       <div class="smart-search">
+        <span class="search-icon">🔍</span>
+        <input id="searchInput" class="search-input" placeholder="Tìm tên, lọc off, chiều tối..."/>
+      </div>
+      <div id="activeFilters" class="active-filters"></div>
+    </div>
+
+    <div class="date-box">
+      <label>Ngày làm việc</label>
+      <input id="datePicker" type="date" />
+    </div>
+  </header>
+
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <div class="card dashboard-card">
+        <div class="card-header">
+          <div class="card-title">📊 Tổng quan <span id="dashboardDate" class="muted-text"></span></div>
+        </div>
+        <div class="dashboard-charts">
+          <div class="chart-wrapper">
+            <canvas id="statusChart"></canvas>
+          </div>
+          <div class="chart-wrapper mt-4">
+            <canvas id="teamChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card actions-card">
+        <div class="card-title">Thao tác nhanh</div>
+        <div class="quick-actions-grid">
+          <button id="btnAllOn"   class="btn btn-outline success">✅ Bỏ OFF tất cả</button>
+          <button id="btnAllOff"  class="btn btn-outline danger">❌ OFF tất cả</button>
+          <button id="btnClearEve" class="btn btn-outline info">🌙 Bỏ Chiều tối</button>
+          <button id="btnClearAllOT" class="btn btn-outline warn">🔥 Xóa OT tất cả</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="content-toolbar">
+        <div class="stats-pills">
+          <div class="stat-pill"><span class="lbl">Tổng</span> <span id="countTotal" class="val">0</span></div>
+          <div class="stat-pill success"><span class="lbl">HC</span> <span id="countOnl" class="val">0</span></div>
+          <div class="stat-pill danger"><span class="lbl">OFF</span> <span id="countOff" class="val">0</span></div>
+          <div class="stat-pill info"><span class="lbl">Chiều tối</span> <span id="countEvening" class="val">0</span></div>
+        </div>
+
+        <div class="main-actions">
+           <button id="btnOpenStatsModal" class="btn btn-ghost">📈 Thống kê</button>
+           <button id="btnOpenExportModal" class="btn btn-ghost">🚀 Xuất báo cáo</button>
+           <button id="btnOpenPasteModal" class="btn btn-ghost" title="Dán danh sách">📋 Dán Excel</button>
+           <button id="btnWeekendDuty" class="btn btn-gradient">🎯 Quay số</button>
+           <button id="btnOpenEmpModal" class="btn btn-primary">➕ Thêm NV</button>
+        </div>
+      </div>
+
+      <div id="tableWrap" class="table-container shadow-sm">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px" id="th-stt" class="sort-header active" title="Sắp xếp ưu tiên">#</th>
+              <th class="col-name sort-header" id="th-name" title="Sắp xếp tên (A-Z)">Nhân viên</th>
+              <th style="width:140px" id="th-team" class="sort-header" title="Sắp xếp đội">Đội</th>
+              <th style="width:130px">Trạng thái</th>
+              <th style="width:100px">Chiều tối</th>
+              <th style="width:100px">OT</th>
+              <th style="width:100px">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div> 
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">📂</div>
+        <div>Chưa có dữ liệu nhân viên nào.</div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <span>Roster Management v2.1</span>
+    <span>•</span>
+    <span>Printerval.com</span>
+  </footer>
+
+  <div id="pasteModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="pasteModalBackdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="title">📋 Dán nhanh OT từ Excel</div>
+        <button class="icon-btn-close" id="pasteModalX">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="hint-text">Copy cả hàng từ Google Sheet (Cột Tên + Giờ OT) rồi dán vào đây.</p>
+        <textarea id="pasteTextarea" class="paste-textarea" rows="10" placeholder="Ví dụ: Nguyễn Văn A ... 17h30-21h30 ..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="pasteModalCancel" class="btn">Hủy</button>
+        <button id="pasteModalApply" class="btn btn-primary">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="teamDialog" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="teamDialogClose"></div>
+    <div class="modal-card large">
+      <div class="modal-header">
+        <div class="title">Cài đặt Đội nhóm</div>
+        <button class="icon-btn-close" id="teamDialogX">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="team-layout">
+          <div class="col left-col">
+            <div class="subttl">Nhân viên</div>
+            <input id="teamSearch" class="input-std mb-2" placeholder="Tìm nhanh..." />
+            <div id="allEmployees" class="listbox draggable-source"></div>
+          </div>
+          <div class="col right-col">
+             <div class="add-team-form mb-3">
+                <input id="newTeamInput" class="input-std" placeholder="Tên đội mới..." />
+                <input type="color" id="newTeamColor" class="color-picker-input" value="#888888">
+                <button id="btnAddTeam" class="btn btn-primary">Thêm</button>
+             </div>
+             
+             <div class="team-tabs-wrapper">
+                <button id="teamTabsPrev" class="tab-nav-btn">‹</button>
+                <div id="teamTabsContainer" class="team-tabs-container"></div>
+                <button id="teamTabsNext" class="tab-nav-btn">›</button>
+             </div>
+             <div id="teamTabContent" class="team-tab-content drop-target"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="empModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="empModalBackdrop"></div>
+    <div class="modal-card small">
+      <div class="modal-header">
+        <div class="title" id="empModalTitle">Nhân viên</div>
+        <button class="icon-btn-close" id="empModalX">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+           <label>Họ và Tên</label>
+           <input id="empModalName" class="input-std" placeholder="Nhập tên..." />
+        </div>
+        <div class="form-group mt-3">
+           <label>Đội (Team)</label>
+           <input id="empModalTeam" class="input-std" placeholder="VD: Vẽ, 2D, Lead..." />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="empModalCancel" class="btn">Hủy</button>
+        <button id="empModalSave" class="btn btn-primary">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="exportModalBackdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="title">Xuất Báo Cáo</div>
+        <button class="icon-btn-close" id="exportModalX">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="option-group">
+           <div class="opt-label">Loại báo cáo</div>
+           <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết theo đội</label>
+        </div>
+        
+        <div id="detailedReportOptions" class="mt-4">
+           <div class="opt-label">Nội dung</div>
+           <div class="radio-stack">
+              <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> ☀️ HC + 🌙 Chiều tối</label>
+              <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> ❌ OFF + 🌙 Chiều tối</label>
+              <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> 🌙 Chiều tối + 💲 OT</label>
+           </div>
+           
+           <div class="opt-label mt-4">Định dạng</div>
+           <div class="radio-stack">
+              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> 📋 Copy vào Clipboard</label>
+              <label class="radio-label"><input type="radio" name="exportFormat" value="txt"> 📄 Lưu file .txt</label>
+           </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCancelExport" class="btn">Đóng</button>
+        <button id="btnConfirmExport" class="btn btn-primary">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="weekendModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="weekendBackdrop"></div>
+    <div class="modal-card medium" id="weekendCard">
+      <div class="modal-header">
+        <div class="header-left">
+           <div class="title">🎯 Quay Số Trực</div>
+        </div>
+        <div class="header-right">
+           <button class="icon-btn" id="btnPinWeekend" title="Ghim ra màn hình (Mini Mode)">📌</button>
+           <button class="icon-btn-close" id="weekendClose">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+  <div class="weekend-info">
+      <p>Danh sách lọc tự động theo giờ hiện tại.</p>
+      <div class="stats-row-mini">
+        <div id="weekendLog">Lần cuối: —</div>
+        <div id="weekendCount" class="badge-count">Còn: 0</div>
+      </div>
+  </div>
+
+  <div id="weekendFilterContainer" class="weekend-filters-row"></div>
+  <div id="weekendList" class="spin-list"></div>
+  <div id="weekendEmpty" class="empty-spin hidden">Danh sách trống.</div>
+</div>
+      <div class="modal-footer flex-center">
+        <button id="weekendResetBtn" class="btn btn-outline">↺ Reset</button>
+        <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY NGAY</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="otModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="otModalBackdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="title" id="otPopoverTitle">Quản lý OT</div>
+        <button class="icon-btn-close" id="btnCancelOt">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="otShiftsList" class="ot-list"></div>
+        <button id="btnShowOtForm" class="btn btn-dashed w-100 mt-2">➕ Thêm ca OT</button>
+        
+        <div id="otEditForm" class="ot-form hidden">
+           <div class="subttl" id="otFormTitle">Ca mới</div>
+           <select id="otPreset" class="input-std mb-2">
+             <option value="custom">-- Tự nhập --</option>
+             <option value="17:00-21:00">17h - 21h (4h)</option>
+             <option value="18:00-22:00">18h - 22h (4h)</option>
+             <option value="19:00-23:00">19h - 23h (4h)</option>
+           </select>
+           <div id="otManualInputs" class="row-2col">
+              <input type="text" id="otStart" class="input-std" placeholder="Bắt đầu (17:30)" />
+              <input type="text" id="otEnd" class="input-std" placeholder="Kết thúc (21:30)" />
+           </div>
+           <div class="btn-row mt-3 right-align">
+              <button id="btnCancelEditOt" class="btn btn-sm">Hủy</button>
+              <button id="btnSaveOt" class="btn btn-sm btn-primary">Lưu</button>
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="statsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="statsModalBackdrop"></div>
+    <div class="modal-card large">
+       <div class="modal-header">
+          <div class="title">Thống kê đơn hàng</div>
+          <div class="header-actions">
+             <div class="date-range-selector">
+                <button class="range-btn active" data-days="7">7 ngày</button>
+                <button class="range-btn" data-days="15">15 ngày</button>
+                <button class="range-btn" data-days="30">30 ngày</button>
+             </div>
+             <button id="btnReloadStats" class="btn btn-sm">↻</button>
+             <button class="icon-btn-close" id="statsModalClose">✕</button>
+          </div>
+       </div>
+       <div class="modal-body">
+          <div class="chart-container-large">
+             <canvas id="statsChart"></canvas>
+          </div>
+          <div id="statsToday" class="text-center mt-2 muted-text">...</div>
+       </div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="confirmModalBackdrop"></div>
+    <div class="modal-card confirm-card">
+      <div class="modal-header no-border">
+         <div class="title" id="confirmTitle">Xác nhận</div>
+      </div>
+      <div class="modal-body pt-0">
+         <p id="confirmMessage">Bạn có chắc không?</p>
+      </div>
+      <div class="modal-footer no-border">
+         <button id="btnConfirmNo" class="btn">Không</button>
+         <button id="btnConfirmYes" class="btn btn-danger">Có, thực hiện</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="hidden"><div class="spinner"></div></div>
+  <div id="toast" class="toast hidden"></div>
+  <div id="jackpotToast" class="jackpot-toast hidden"></div>
+  <div id="celebrateOverlay" class="hidden"></div>
+  <canvas id="confettiCanvas"></canvas>
+
+  <div id="winnerModal" class="modal hidden" style="z-index: 9999;">
+  <div class="modal-backdrop" id="winnerBackdrop"></div>
+  <div class="modal-card winner-card">
+    <div class="winner-content">
+      <div class="winner-icon">🏆</div>
+      <div class="winner-label">NGƯỜI ĐƯỢC CHỌN</div>
+      <div id="winnerNameDisplay" class="winner-name">Nguyễn Văn A</div>
+      <div id="winnerDetailDisplay" class="winner-detail">Team Vẽ • Chiều tối</div>
+      <button id="btnCloseWinner" class="btn btn-gradient large mt-4">Tuyệt vời! 🎉</button>
+    </div>
+  </div>
+</div>
+
+  <script type="module" src="./bridge.js"></script> 
+<script src="./renderer.js" defer></script>
+</body>
+</html>

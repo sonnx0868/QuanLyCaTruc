@@ -1,0 +1,66 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/preferences
+
+      # Khởi tạo Capacitor (vì folder ios không được push lên git)
+      - name: Initialize Capacitor
+        run: |
+          npx cap init QuanLyCaTruc com.sonnx.quanlycatruc --web-dir=renderer
+          npx cap add ios
+          npx cap sync ios
+
+      # Cập nhật CocoaPods (Thư viện native iOS)
+      - name: Update CocoaPods
+        run: |
+          cd ios/App
+          pod install
+
+      # Build ra file Archive
+      - name: Build xcode archive
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath $PWD/build/App.xcarchive \
+            clean archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      # Đóng gói thành .ipa (Unsigned)
+      - name: Create IPA
+        run: |
+          cd ios/App
+          mkdir Payload
+          cp -r build/App.xcarchive/Products/Applications/App.app Payload/
+          zip -r App-unsigned.ipa Payload
+
+      # Upload file IPA để bạn tải về
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quanlycatruc-ios
+          path: ios/App/App-unsigned.ipa

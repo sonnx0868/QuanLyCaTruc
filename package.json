@@ -1,0 +1,41 @@
+{
+  "name": "QuanLyCaTruc",
+  "productName": "Roster Management",
+  "version": "2.2.5",
+  "description": "Công cụ quản lý ca trực nhân viên",
+  "author": "SonNX",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.sonnx.quanlycatruc",
+    "productName": "Quản lý Ca Trực",
+    "files": [
+      "main.js",
+      "store.js",
+      "renderer/**/*",
+      "favicon.ico"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@capacitor/preferences": "^8.0.0"
+  }
+}
