@@ -350,38 +350,39 @@
 
   <script type="module">
     (async function() {
-      // Logic kiểm tra môi trường chạy
+      console.log("🚀 Booting App...");
+      
       const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
       const isElectron = navigator.userAgent.toLowerCase().includes(' electron/');
-      
-      console.log(`[Boot] Env detected: Native=${isNative}, Electron=${isElectron}`);
 
+      // 1. Tải Bridge/Shim trước
       if (isNative) {
-        console.log("📱 Running in Native App (iOS/Android) -> Loading bridge.js");
+        console.log("📱 Mode: Native App (iPad/iPhone)");
         try {
-          await import('./bridge.js');
+          await import('./bridge.js'); // Đợi tải xong bridge.js và store-mobile.js
+          console.log("✅ Bridge loaded!");
         } catch (e) {
-          console.error("❌ Failed to load bridge.js in Native mode:", e);
+          console.error("❌ Lỗi tải Bridge:", e);
         }
       } 
       else if (!isElectron) {
-        console.log("☁️ Running in Web Browser (Windows/Cloud) -> Loading ios-shim.js");
-        // Web thông thường sẽ dùng ios-shim.js
-        // Lưu ý: Trên Windows (file://), API Printerval sẽ bị chặn CORS, đây là bình thường.
-        return new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = './ios-shim.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
+        console.log("☁️ Mode: Web/Cloud");
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = './ios-shim.js';
+          s.onload = resolve;
+          document.body.appendChild(s);
         });
       }
-      else {
-        console.log("💻 Running in Electron -> Using Native Preload.");
-      }
+      
+      // 2. SAU ĐÓ mới tải Renderer (Giao diện)
+      console.log("🎨 Loading UI...");
+      const script = document.createElement('script');
+      script.src = './renderer.js';
+      script.defer = true;
+      document.body.appendChild(script);
+      
     })();
   </script>
-
-  <script src="./renderer.js" defer></script>
 </body>
 </html>

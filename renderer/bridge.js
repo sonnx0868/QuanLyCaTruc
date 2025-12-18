@@ -1,5 +1,4 @@
-import { loadStore, saveStore } from './store.js';
-
+import { loadStore, saveStore } from './store-mobile.js';
 // --- 1. Thay thế Logic API Cloud (giữ nguyên từ preload cũ) ---
 const SERVER_URL = 'https://employee-roster-api.sonnx-pod.workers.dev';
 
