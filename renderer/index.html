@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <title>Roster Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev https://printerval.com https://cdn.jsdelivr.net">
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -109,7 +111,7 @@
   </div>
 
   <footer class="statusbar">
-    <span>Roster Management v2.1</span>
+    <span>Roster Management v2.2.5 (Mobile Ready)</span>
     <span>•</span>
     <span>Printerval.com</span>
   </footer>
@@ -197,7 +199,7 @@
         <button class="icon-btn-close" id="exportModalX">✕</button>
       </div>
       <div class="modal-body">
-        <div class="option-group">
+        <div class="option-group" id="simpleReportOptions">
            <div class="opt-label">Loại báo cáo</div>
            <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết theo đội</label>
         </div>
@@ -237,18 +239,17 @@
         </div>
       </div>
       <div class="modal-body">
-  <div class="weekend-info">
-      <p>Danh sách lọc tự động theo giờ hiện tại.</p>
-      <div class="stats-row-mini">
-        <div id="weekendLog">Lần cuối: —</div>
-        <div id="weekendCount" class="badge-count">Còn: 0</div>
+          <div class="weekend-info">
+              <p>Danh sách lọc tự động theo giờ hiện tại.</p>
+              <div class="stats-row-mini">
+                <div id="weekendLog">Lần cuối: —</div>
+                <div id="weekendCount" class="badge-count">Còn: 0</div>
+              </div>
+          </div>
+          <div id="weekendFilterContainer" class="weekend-filters-row"></div>
+          <div id="weekendList" class="spin-list"></div>
+          <div id="weekendEmpty" class="empty-spin hidden">Danh sách trống.</div>
       </div>
-  </div>
-
-  <div id="weekendFilterContainer" class="weekend-filters-row"></div>
-  <div id="weekendList" class="spin-list"></div>
-  <div id="weekendEmpty" class="empty-spin hidden">Danh sách trống.</div>
-</div>
       <div class="modal-footer flex-center">
         <button id="weekendResetBtn" class="btn btn-outline">↺ Reset</button>
         <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY NGAY</button>
@@ -335,19 +336,52 @@
   <canvas id="confettiCanvas"></canvas>
 
   <div id="winnerModal" class="modal hidden" style="z-index: 9999;">
-  <div class="modal-backdrop" id="winnerBackdrop"></div>
-  <div class="modal-card winner-card">
-    <div class="winner-content">
-      <div class="winner-icon">🏆</div>
-      <div class="winner-label">NGƯỜI ĐƯỢC CHỌN</div>
-      <div id="winnerNameDisplay" class="winner-name">Nguyễn Văn A</div>
-      <div id="winnerDetailDisplay" class="winner-detail">Team Vẽ • Chiều tối</div>
-      <button id="btnCloseWinner" class="btn btn-gradient large mt-4">Tuyệt vời! 🎉</button>
+    <div class="modal-backdrop" id="winnerBackdrop"></div>
+    <div class="modal-card winner-card">
+      <div class="winner-content">
+        <div class="winner-icon">🏆</div>
+        <div class="winner-label">NGƯỜI ĐƯỢC CHỌN</div>
+        <div id="winnerNameDisplay" class="winner-name">Nguyễn Văn A</div>
+        <div id="winnerDetailDisplay" class="winner-detail">Team Vẽ • Chiều tối</div>
+        <button id="btnCloseWinner" class="btn btn-gradient large mt-4">Tuyệt vời! 🎉</button>
+      </div>
     </div>
   </div>
-</div>
 
-<script src="./ios-shim.js"></script>
-<script src="./renderer.js" defer></script>
+  <script type="module">
+    (async function() {
+      // Logic kiểm tra môi trường chạy
+      const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
+      const isElectron = navigator.userAgent.toLowerCase().includes(' electron/');
+      
+      console.log(`[Boot] Env detected: Native=${isNative}, Electron=${isElectron}`);
+
+      if (isNative) {
+        console.log("📱 Running in Native App (iOS/Android) -> Loading bridge.js");
+        try {
+          await import('./bridge.js');
+        } catch (e) {
+          console.error("❌ Failed to load bridge.js in Native mode:", e);
+        }
+      } 
+      else if (!isElectron) {
+        console.log("☁️ Running in Web Browser (Windows/Cloud) -> Loading ios-shim.js");
+        // Web thông thường sẽ dùng ios-shim.js
+        // Lưu ý: Trên Windows (file://), API Printerval sẽ bị chặn CORS, đây là bình thường.
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = './ios-shim.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+      else {
+        console.log("💻 Running in Electron -> Using Native Preload.");
+      }
+    })();
+  </script>
+
+  <script src="./renderer.js" defer></script>
 </body>
 </html>

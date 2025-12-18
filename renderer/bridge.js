@@ -94,19 +94,29 @@ const api = {
   },
 
   // Tính năng thống kê (gọi trực tiếp API thay vì qua net của Electron)
-  getDesignJobStats: async ({ from, to }) => {
+ getDesignJobStats: async ({ from, to }) => {
     try {
       const url = `https://printerval.com/central/service/pod/design-job-stats/find?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+      
+      // Sử dụng fetch (đã được CapacitorHttp patch) nhưng thêm User-Agent giả lập PC
       const res = await fetch(url, {
+        method: 'GET',
         headers: {
           "accept": "application/json, text/plain, */*",
-          "token": "f7a5a50d9c6f3218c3baf7b46d76556a" 
+          "token": "f7a5a50d9c6f3218c3baf7b46d76556a",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
       });
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+
       const data = await res.json();
       return { ok: true, data: { result: data } };
     } catch (error) {
       console.error('Stats fetch error:', error);
+      // Trả về mock data rỗng để app không bị treo nếu lỗi mạng
       return { ok: false, error: error.message };
     }
   },
