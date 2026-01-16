@@ -389,23 +389,21 @@ function getLiveWeekendCandidates() {
   const liveList = [];
 
   allCandidates.forEach(p => {
-    // 1. Kiểm tra trạng thái HC (ONL)
-    // Nếu là ONL và giờ hiện tại (VN) < 17:00 thì giữ tag ONL
-    const isHcStillActive = p.onl && (nowMins < TIME_HC_END);
+    // 1. Kiểm tra trạng thái HC (ONL hoặc OFF nửa ngày)
+    // [SỬA ĐỔI QUAN TRỌNG]: Cho phép cả người OFF sáng/chiều được tính là đang làm HC
+    // (Miễn là họ đã lọt được vào pool lọc theo giờ ở bước buildWeekendPoolFromState)
+    const isHalfDayOff = (p.off === 'morning' || p.off === 'afternoon');
+    const isHcStillActive = (p.onl || isHalfDayOff) && (nowMins < TIME_HC_END);
     
     // 2. Kiểm tra trạng thái Chiều tối
-    // Nếu là Chiều tối và giờ hiện tại (VN) < 22:00 thì giữ tag Chiều tối
     const isEveStillActive = p.evening && (nowMins < TIME_EVE_END);
 
     // 3. Kiểm tra danh sách OT
-    // Chỉ giữ lại các ca mà giờ kết thúc lớn hơn giờ hiện tại
-    // (Lưu ý: hàm getTimeValueMinutes đã xử lý việc 1h30 sáng = 25h30 > 21h30)
     const rawOtShifts = (p.otShifts || []).filter(shift => {
       const shiftEndMins = getTimeValueMinutes(shift.end);
       return nowMins < shiftEndMins; 
     });
 
-    // [FIX] Sắp xếp lại để 1h30 (25h30) nằm sau 21h
     const activeOtShifts = rawOtShifts.sort((a, b) => {
       return getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start);
     });
@@ -3113,12 +3111,19 @@ btnConfirmExport.addEventListener('click', async () => {
         if (HC_WEEKEND_EXCLUDED_TEAMS.has(emp.team) && !isSunday) continue;
 
         const isOnl = !off && !isEvening;
+        const isHalfDayOff = (off === 'morning' || off === 'afternoon');
 
         if (isEvening) {
+          // Nhóm B: Chiều tối
           groupB_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
         } else if (isOnl) {
+          // Nhóm A: Full Hành chính
           groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${activeOtLabel}`.trim() });
+        } else if (isHalfDayOff) { 
+          // [SỬA ĐỔI]: Nhóm A: OFF nửa ngày (vẫn tính là có làm HC)
+          groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim() });
         } else if (off && hasActiveOT) { 
+          // Nhóm A: OFF cả ngày nhưng có OT (nếu muốn hiện)
           groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim() });
         }
         break;
@@ -3653,6 +3658,230 @@ function closeStatsModal() {
   }
   // === KẾT THÚC PHẦN THÊM MỚI ===
 }
+
+// ==========================================================
+// === LOGIC CHECK PULL MỚI (Dán Text -> Phân tích) ===
+// ==========================================================
+
+const pullCheckModal = $('#pullCheckModal');
+const pasteMeearArea = $('#pasteMeearArea');
+const pasteBlurArea = $('#pasteBlurArea');
+const pullCheckResult = $('#pullCheckResult');
+const listMissingHC = $('#listMissingHC');
+const listMissingEve = $('#listMissingEve');
+const countMissingHC = $('#countMissingHC');
+const countMissingEve = $('#countMissingEve');
+
+const pullCheckDateDisplay = $('#pullCheckDateDisplay'); // <--- Thêm biến này
+
+// 1. Hàm mở Modal (Cập nhật ngày đang chọn)
+function openPullCheckModal() {
+  // Lấy ngày đang chọn trên lịch
+  const currentDate = $('#datePicker').value; 
+  
+  // Hiển thị ngày đó lên tiêu đề Modal để user biết đang check ngày nào
+  // Chuyển format YYYY-MM-DD sang DD/MM/YYYY cho dễ nhìn (tùy chọn)
+  const [y, m, d] = currentDate.split('-');
+  pullCheckDateDisplay.textContent = `${d}/${m}/${y}`;
+
+  // Reset dữ liệu cũ
+  pasteMeearArea.value = '';
+  pasteBlurArea.value = '';
+  pullCheckResult.style.display = 'none';
+  
+  pullCheckModal.classList.remove('hidden');
+  pullCheckModal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => pasteMeearArea.focus(), 50);
+}
+
+// 2. Hàm đóng Modal
+function closePullCheckModal() {
+  pullCheckModal.classList.add('hidden');
+  pullCheckModal.setAttribute('aria-hidden', 'true');
+}
+
+// 3. Hàm Parse dữ liệu (Quan trọng)
+// Input: Text dán từ bảng
+// Output: Mảng các tên đã chuẩn hóa
+function parsePullData(text) {
+  const lines = text.split('\n');
+  const foundNames = new Set();
+
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    
+    // Bỏ qua các dòng tiêu đề hoặc tổng
+    if (line.startsWith('Designer') || line.startsWith('Tổng cộng')) return;
+
+    // Xử lý dòng: "Nguyễn Văn A (Mã) 2 0 1..."
+    // Thường copy từ bảng sẽ ngăn cách bởi Tab (\t)
+    let rawName = '';
+    
+    if (line.includes('\t')) {
+      // Nếu có Tab, tên là cột đầu tiên
+      rawName = line.split('\t')[0];
+    } else {
+      // Nếu không có Tab (copy space), cố gắng lấy phần text trước số đầu tiên
+      // Regex: Lấy từ đầu dòng đến trước chữ số đầu tiên
+      const match = line.match(/^([^\d]+)/); 
+      if (match) {
+        rawName = match[1];
+      } else {
+        rawName = line; // Fallback
+      }
+    }
+
+    // Làm sạch tên bằng hàm cleanNameForMatching (đã có ở bài trước)
+    // Nếu chưa có hàm đó thì dùng logic đơn giản này:
+    const clean = rawName
+      .toLowerCase()
+      .replace(/\(.*?\)/g, '') // Bỏ (NKH)...
+      .split('-')[0]           // Bỏ - 3D...
+      .trim();
+
+    if (clean) foundNames.add(clean);
+  });
+
+  return foundNames;
+}
+
+// 4. Hàm Phân tích (Core Logic)
+// --- Thay thế hàm analyzePullData MỚI ---
+function analyzePullData() {
+  const meearText = pasteMeearArea.value;
+  const blurText = pasteBlurArea.value;
+
+  if (!meearText && !blurText) {
+    showToast('⚠️ Bạn chưa dán dữ liệu nào cả!');
+    return;
+  }
+
+  // 1. Lấy danh sách đã pull từ text
+  const pulledMeear = parsePullData(meearText); // List tên đã làm Meear
+  const pulledBlur = parsePullData(blurText);   // List tên đã làm Blur
+
+  const missingHC = [];
+  const missingEve = [];
+
+  // 2. Duyệt qua danh sách nhân viên để kiểm tra
+  (state.employees || []).forEach(emp => {
+    // --- LỌC TEAM: Bỏ qua Lead và Vẽ ---
+    const team = (emp.team || '').toLowerCase();
+    if (team.includes('lead') || team === 'vẽ' || team === 've' || team.includes('team vẽ')) {
+        return; 
+    }
+
+    // --- LẤY TRẠNG THÁI NGÀY ĐANG XEM ---
+    const st = normStatus(state.statuses[emp.name] || {});
+    const offVal = st.off || null;
+    const isEvening = !!st.evening;
+    const empNameClean = cleanNameForMatching(emp.name);
+
+    // --- LOGIC SO SÁNH 2 SITE (QUAN TRỌNG) ---
+    
+    // Kiểm tra xem có trong danh sách Meear không
+    const inMeear = [...pulledMeear].some(n => empNameClean.includes(n) || n.includes(empNameClean));
+    
+    // Kiểm tra xem có trong danh sách Blur không
+    const inBlur = [...pulledBlur].some(n => empNameClean.includes(n) || n.includes(empNameClean));
+
+    // ĐIỀU KIỆN ĐỦ: Phải có cả 2 mới được tính là xong
+    if (inMeear && inBlur) return; 
+
+    // Xác định loại thiếu
+    let missingType = 'both'; // Mặc định thiếu cả 2
+    if (inMeear && !inBlur) missingType = 'blur';   // Đã làm Meear -> Thiếu Blur
+    if (!inMeear && inBlur) missingType = 'meear';  // Đã làm Blur -> Thiếu Meear
+
+    // Tạo object dữ liệu để hiển thị
+    const missingItem = { name: emp.name, type: missingType };
+
+    // --- PHÂN LOẠI CA LÀM VIỆC ---
+    if (offVal === 'allday') return; // Nghỉ cả ngày thì bỏ qua
+
+    if (isEvening) {
+      // Ca Chiều Tối (trừ khi OFF chiều/cả ngày)
+      if (offVal !== 'afternoon' && offVal !== 'allday') {
+         missingEve.push(missingItem);
+      }
+    } else {
+      // Ca Hành Chính (trừ khi OFF cả ngày)
+      if (offVal !== 'allday') { 
+         missingHC.push(missingItem);
+      }
+    }
+  });
+
+  // Hiển thị kết quả
+  renderMissingList(listMissingHC, missingHC, countMissingHC);
+  renderMissingList(listMissingEve, missingEve, countMissingEve);
+
+  pullCheckResult.style.display = 'block';
+}
+
+// --- Thay thế hàm renderMissingList MỚI ---
+function renderMissingList(ulElement, list, countElement) {
+  ulElement.innerHTML = '';
+  countElement.textContent = list.length;
+  
+  if (list.length === 0) {
+    ulElement.innerHTML = '<li style="color:green; list-style:none; font-weight:500;">✅ Đã pull đủ cả 2 site!</li>';
+    return;
+  }
+
+  list.forEach(item => {
+    // item bây giờ là object {name, type}
+    const li = document.createElement('li');
+    li.className = 'missing-item';
+    
+    // Tạo nhãn (Badge) dựa trên loại thiếu
+    let badgeHtml = '';
+    if (item.type === 'both')  badgeHtml = `<span class="tag-note missing-both">Thiếu cả 2</span>`;
+    if (item.type === 'meear') badgeHtml = `<span class="tag-note missing-meear">Thiếu Meear</span>`;
+    if (item.type === 'blur')  badgeHtml = `<span class="tag-note missing-blur">Thiếu Blur</span>`;
+
+    li.innerHTML = `
+      <div style="display:flex; align-items:center;">
+        <span style="font-weight:500">${item.name}</span>
+        ${badgeHtml}
+      </div>
+      <span class="btn-remove-missing" title="Xóa dòng này">✕</span>
+    `;
+
+    // Sự kiện xóa thủ công
+    li.querySelector('.btn-remove-missing').addEventListener('click', () => {
+        li.remove();
+        const currentCount = parseInt(countElement.textContent) || 0;
+        countElement.textContent = Math.max(0, currentCount - 1);
+        if (ulElement.children.length === 0) {
+            ulElement.innerHTML = '<li style="color:green; list-style:none; font-weight:500;">✅ Đã pull đủ cả 2 site!</li>';
+        }
+    });
+
+    ulElement.appendChild(li);
+  });
+}
+
+// --- DÁN VÀO CUỐI FILE renderer.js ---
+
+// Hàm làm sạch tên để so sánh (Bỏ ngoặc, bỏ đuôi team...)
+function cleanNameForMatching(fullName) {
+  if (!fullName) return '';
+  return fullName
+    .toLowerCase()             // Chuyển thành chữ thường
+    .replace(/\(.*?\)/g, '')   // Bỏ phần trong ngoặc như (DK), (NH)
+    .split('-')[0]             // Cắt bỏ phần sau dấu gạch ngang ( - 2D)
+    .replace(/\d+$/, '')       // Bỏ số ở cuối tên nếu có
+    .trim();                   // Xóa khoảng trắng thừa
+}
+
+// 6. Gắn sự kiện
+$('#btnOpenPullCheck')?.addEventListener('click', openPullCheckModal);
+$('#pullCheckX')?.addEventListener('click', closePullCheckModal);
+$('#pullCheckBackdrop')?.addEventListener('click', closePullCheckModal);
+$('#pullCheckCancel')?.addEventListener('click', closePullCheckModal);
+$('#btnAnalyzePull')?.addEventListener('click', analyzePullData);
 
 // Gắn sự kiện cho các nút
 $('#btnReloadStats')?.addEventListener('click', reloadTodayStats);
