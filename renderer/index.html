@@ -2,28 +2,15 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <title>Roster Management</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Roster Manager Mobile</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev https://printerval.com https://cdn.jsdelivr.net">
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <link rel="stylesheet" href="./style.css">
-  <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-<script>
-  // Kích hoạt console ngay lập tức
-  var vConsole = new VConsole();
-  console.log("✅ vConsole đã khởi động! Bạn có thể xem lỗi tại đây.");
-</script>
 </head>
 <body>
-
-  <div id="miniModeBg" style="height: 30px;"></div>
 
   <header class="appbar">
     <div class="appbar-left">
@@ -37,13 +24,12 @@
     <div class="appbar-center">
        <div class="smart-search">
         <span class="search-icon">🔍</span>
-        <input id="searchInput" class="search-input" placeholder="Tìm tên, lọc off, chiều tối..."/>
+        <input id="searchInput" class="search-input" placeholder="Tìm tên..."/>
       </div>
       <div id="activeFilters" class="active-filters"></div>
     </div>
 
     <div class="date-box">
-      <label>Ngày làm việc</label>
       <input id="datePicker" type="date" />
     </div>
   </header>
@@ -67,10 +53,10 @@
       <div class="card actions-card">
         <div class="card-title">Thao tác nhanh</div>
         <div class="quick-actions-grid">
-          <button id="btnAllOn"   class="btn btn-outline success">✅ Bỏ OFF tất cả</button>
-          <button id="btnAllOff"  class="btn btn-outline danger">❌ OFF tất cả</button>
-          <button id="btnClearEve" class="btn btn-outline info">🌙 Bỏ Chiều tối</button>
-          <button id="btnClearAllOT" class="btn btn-outline warn">🔥 Xóa OT tất cả</button>
+          <button id="btnAllOn"   class="btn btn-outline success">✅ All ONL</button>
+          <button id="btnAllOff"  class="btn btn-outline danger">❌ All OFF</button>
+          <button id="btnClearEve" class="btn btn-outline info">🌙 Xóa CT</button>
+          <button id="btnClearAllOT" class="btn btn-outline warn">🔥 Xóa OT</button>
         </div>
       </div>
     </aside>
@@ -81,29 +67,32 @@
           <div class="stat-pill"><span class="lbl">Tổng</span> <span id="countTotal" class="val">0</span></div>
           <div class="stat-pill success"><span class="lbl">HC</span> <span id="countOnl" class="val">0</span></div>
           <div class="stat-pill danger"><span class="lbl">OFF</span> <span id="countOff" class="val">0</span></div>
-          <div class="stat-pill info"><span class="lbl">Chiều tối</span> <span id="countEvening" class="val">0</span></div>
+          <div class="stat-pill info"><span class="lbl">CT</span> <span id="countEvening" class="val">0</span></div>
         </div>
 
         <div class="main-actions">
-           <button id="btnOpenStatsModal" class="btn btn-ghost">📈 Thống kê</button>
-           <button id="btnOpenExportModal" class="btn btn-ghost">🚀 Xuất báo cáo</button>
-           <button id="btnOpenPasteModal" class="btn btn-ghost" title="Dán danh sách">📋 Dán Excel</button>
-           <button id="btnWeekendDuty" class="btn btn-gradient">🎯 Quay số</button>
-           <button id="btnOpenEmpModal" class="btn btn-primary">➕ Thêm NV</button>
-        </div>
+           <div class="btn-group-pull">
+              <button id="btnOpenPullCheck" class="btn btn-outline warn">⚡ Check</button>
+           </div>
+           <button id="btnOpenStatsModal" class="btn btn-ghost">📈</button>
+           <button id="btnOpenExportModal" class="btn btn-ghost">🚀</button>
+           <button id="btnOpenPasteModal" class="btn btn-ghost">📋</button>
+           <button id="btnWeekendDuty" class="btn btn-gradient">🎯 Quay</button>
+           <button id="btnOpenEmpModal" class="btn btn-primary">➕</button>
+      </div>
       </div>
 
       <div id="tableWrap" class="table-container shadow-sm">
         <table>
           <thead>
             <tr>
-              <th style="width: 50px" id="th-stt" class="sort-header active" title="Sắp xếp ưu tiên">#</th>
-              <th class="col-name sort-header" id="th-name" title="Sắp xếp tên (A-Z)">Nhân viên</th>
-              <th style="width:140px" id="th-team" class="sort-header" title="Sắp xếp đội">Đội</th>
-              <th style="width:130px">Trạng thái</th>
-              <th style="width:100px">Chiều tối</th>
-              <th style="width:100px">OT</th>
-              <th style="width:100px">Thao tác</th>
+              <th style="width: 40px" id="th-stt" class="sort-header active">#</th>
+              <th class="col-name sort-header" id="th-name">Nhân viên</th>
+              <th style="width:80px" id="th-team" class="sort-header">Đội</th>
+              <th style="width:100px">Trạng thái</th>
+              <th style="width:50px">CT</th>
+              <th style="width:60px">OT</th>
+              <th style="width:80px">Thao tác</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -111,27 +100,24 @@
       </div> 
       <div id="emptyState" class="empty-state hidden">
         <div class="empty-icon">📂</div>
-        <div>Chưa có dữ liệu nhân viên nào.</div>
+        <div>Chưa có dữ liệu.</div>
       </div>
     </main>
   </div>
 
   <footer class="statusbar">
-    <span>Roster Management v2.2.5 (Mobile Ready)</span>
-    <span>•</span>
-    <span>Printerval.com</span>
+    <span>Mobile v2.2</span>
   </footer>
 
-  <div id="pasteModal" class="modal hidden" aria-hidden="true">
+  <div id="pasteModal" class="modal hidden">
     <div class="modal-backdrop" id="pasteModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="title">📋 Dán nhanh OT từ Excel</div>
+        <div class="title">📋 Dán OT Excel</div>
         <button class="icon-btn-close" id="pasteModalX">✕</button>
       </div>
       <div class="modal-body">
-        <p class="hint-text">Copy cả hàng từ Google Sheet (Cột Tên + Giờ OT) rồi dán vào đây.</p>
-        <textarea id="pasteTextarea" class="paste-textarea" rows="10" placeholder="Ví dụ: Nguyễn Văn A ... 17h30-21h30 ..."></textarea>
+        <textarea id="pasteTextarea" class="paste-textarea" rows="10" placeholder="Paste dữ liệu vào đây..."></textarea>
       </div>
       <div class="modal-footer">
         <button id="pasteModalCancel" class="btn">Hủy</button>
@@ -140,40 +126,38 @@
     </div>
   </div>
 
-  <div id="teamDialog" class="modal hidden" aria-hidden="true">
+  <div id="teamDialog" class="modal hidden">
     <div class="modal-backdrop" id="teamDialogClose"></div>
     <div class="modal-card large">
       <div class="modal-header">
-        <div class="title">Cài đặt Đội nhóm</div>
+        <div class="title">Cài đặt Đội</div>
         <button class="icon-btn-close" id="teamDialogX">✕</button>
       </div>
       <div class="modal-body">
         <div class="team-layout">
           <div class="col left-col">
-            <div class="subttl">Nhân viên</div>
-            <input id="teamSearch" class="input-std mb-2" placeholder="Tìm nhanh..." />
-            <div id="allEmployees" class="listbox draggable-source"></div>
+            <input id="teamSearch" class="input-std mb-2" placeholder="Tìm..." />
+            <div id="allEmployees" class="listbox"></div>
           </div>
           <div class="col right-col">
              <div class="add-team-form mb-3">
-                <input id="newTeamInput" class="input-std" placeholder="Tên đội mới..." />
+                <input id="newTeamInput" class="input-std" placeholder="Đội mới..." />
                 <input type="color" id="newTeamColor" class="color-picker-input" value="#888888">
-                <button id="btnAddTeam" class="btn btn-primary">Thêm</button>
+                <button id="btnAddTeam" class="btn btn-primary">+</button>
              </div>
-             
              <div class="team-tabs-wrapper">
                 <button id="teamTabsPrev" class="tab-nav-btn">‹</button>
                 <div id="teamTabsContainer" class="team-tabs-container"></div>
                 <button id="teamTabsNext" class="tab-nav-btn">›</button>
              </div>
-             <div id="teamTabContent" class="team-tab-content drop-target"></div>
+             <div id="teamTabContent" class="team-tab-content"></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="empModal" class="modal hidden" aria-hidden="true">
+  <div id="empModal" class="modal hidden">
     <div class="modal-backdrop" id="empModalBackdrop"></div>
     <div class="modal-card small">
       <div class="modal-header">
@@ -182,12 +166,12 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-           <label>Họ và Tên</label>
-           <input id="empModalName" class="input-std" placeholder="Nhập tên..." />
+           <label>Tên</label>
+           <input id="empModalName" class="input-std" />
         </div>
         <div class="form-group mt-3">
-           <label>Đội (Team)</label>
-           <input id="empModalTeam" class="input-std" placeholder="VD: Vẽ, 2D, Lead..." />
+           <label>Đội</label>
+           <input id="empModalTeam" class="input-std" />
         </div>
       </div>
       <div class="modal-footer">
@@ -197,7 +181,7 @@
     </div>
   </div>
 
-  <div id="exportModal" class="modal hidden" aria-hidden="true">
+  <div id="exportModal" class="modal hidden">
     <div class="modal-backdrop" id="exportModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
@@ -205,34 +189,29 @@
         <button class="icon-btn-close" id="exportModalX">✕</button>
       </div>
       <div class="modal-body">
-        <div class="option-group" id="simpleReportOptions">
-           <div class="opt-label">Loại báo cáo</div>
-           <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết theo đội</label>
+        <div class="option-group">
+           <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết</label>
         </div>
-        
         <div id="detailedReportOptions" class="mt-4">
-           <div class="opt-label">Nội dung</div>
            <div class="radio-stack">
-              <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> ☀️ HC + 🌙 Chiều tối</label>
-              <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> ❌ OFF + 🌙 Chiều tối</label>
-              <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> 🌙 Chiều tối + 💲 OT</label>
+              <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> HC + CT</label>
+              <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> OFF + CT</label>
+              <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> CT + OT</label>
            </div>
-           
            <div class="opt-label mt-4">Định dạng</div>
            <div class="radio-stack">
-              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> 📋 Copy vào Clipboard</label>
-              <label class="radio-label"><input type="radio" name="exportFormat" value="txt"> 📄 Lưu file .txt</label>
+              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> Copy Clipboard</label>
            </div>
         </div>
       </div>
       <div class="modal-footer">
         <button id="btnCancelExport" class="btn">Đóng</button>
-        <button id="btnConfirmExport" class="btn btn-primary">Xác nhận</button>
+        <button id="btnConfirmExport" class="btn btn-primary">Xuất</button>
       </div>
     </div>
   </div>
 
-  <div id="weekendModal" class="modal hidden" aria-hidden="true">
+  <div id="weekendModal" class="modal hidden">
     <div class="modal-backdrop" id="weekendBackdrop"></div>
     <div class="modal-card medium" id="weekendCard">
       <div class="modal-header">
@@ -240,51 +219,47 @@
            <div class="title">🎯 Quay Số Trực</div>
         </div>
         <div class="header-right">
-           <button class="icon-btn" id="btnPinWeekend" title="Ghim ra màn hình (Mini Mode)">📌</button>
            <button class="icon-btn-close" id="weekendClose">✕</button>
         </div>
       </div>
       <div class="modal-body">
-          <div class="weekend-info">
-              <p>Danh sách lọc tự động theo giờ hiện tại.</p>
-              <div class="stats-row-mini">
-                <div id="weekendLog">Lần cuối: —</div>
-                <div id="weekendCount" class="badge-count">Còn: 0</div>
-              </div>
-          </div>
-          <div id="weekendFilterContainer" class="weekend-filters-row"></div>
-          <div id="weekendList" class="spin-list"></div>
-          <div id="weekendEmpty" class="empty-spin hidden">Danh sách trống.</div>
+        <div class="weekend-info">
+            <div class="stats-row-mini">
+              <div id="weekendLog">Last: —</div>
+              <div id="weekendCount" class="badge-count">0</div>
+            </div>
+        </div>
+        <div id="weekendFilterContainer" class="weekend-filters-row"></div>
+        <div id="weekendList" class="spin-list"></div>
+        <div id="weekendEmpty" class="empty-spin hidden">Trống.</div>
       </div>
       <div class="modal-footer flex-center">
         <button id="weekendResetBtn" class="btn btn-outline">↺ Reset</button>
-        <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY NGAY</button>
+        <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY</button>
       </div>
     </div>
   </div>
 
-  <div id="otModal" class="modal hidden" aria-hidden="true">
+  <div id="otModal" class="modal hidden">
     <div class="modal-backdrop" id="otModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="title" id="otPopoverTitle">Quản lý OT</div>
+        <div class="title" id="otPopoverTitle">OT</div>
         <button class="icon-btn-close" id="btnCancelOt">✕</button>
       </div>
       <div class="modal-body">
         <div id="otShiftsList" class="ot-list"></div>
-        <button id="btnShowOtForm" class="btn btn-dashed w-100 mt-2">➕ Thêm ca OT</button>
-        
+        <button id="btnShowOtForm" class="btn btn-dashed w-100 mt-2">➕ Thêm OT</button>
         <div id="otEditForm" class="ot-form hidden">
            <div class="subttl" id="otFormTitle">Ca mới</div>
            <select id="otPreset" class="input-std mb-2">
              <option value="custom">-- Tự nhập --</option>
-             <option value="17:00-21:00">17h - 21h (4h)</option>
-             <option value="18:00-22:00">18h - 22h (4h)</option>
-             <option value="19:00-23:00">19h - 23h (4h)</option>
+             <option value="17:00-21:00">17h - 21h</option>
+             <option value="18:00-22:00">18h - 22h</option>
            </select>
            <div id="otManualInputs" class="row-2col">
-              <input type="text" id="otStart" class="input-std" placeholder="Bắt đầu (17:30)" />
-              <input type="text" id="otEnd" class="input-std" placeholder="Kết thúc (21:30)" />
+              <input type="text" id="otStart" class="input-std" placeholder="17:30" />
+              <input type="text" id="otEnd" class="input-std" placeholder="21:30" />
            </div>
            <div class="btn-row mt-3 right-align">
               <button id="btnCancelEditOt" class="btn btn-sm">Hủy</button>
@@ -294,17 +269,53 @@
       </div>
     </div>
   </div>
+
+<div id="pullCheckModal" class="modal hidden">
+  <div class="modal-backdrop" id="pullCheckBackdrop"></div>
+  <div class="modal-card large" style="max-width: 95vw;"> 
+    <div class="modal-header">
+      <div class="title">⚡ Check Pull <span id="pullCheckDateDisplay"></span></div>
+      <button class="icon-btn-close" id="pullCheckX">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 10px;">
+        <div>
+          <label style="color:#ea580c;font-weight:600">MEEAR</label>
+          <textarea id="pasteMeearArea" class="paste-textarea" style="height:100px" placeholder="Dán bảng Meear..."></textarea>
+        </div>
+        <div>
+          <label style="color:#2563eb;font-weight:600">BLUR</label>
+          <textarea id="pasteBlurArea" class="paste-textarea" style="height:100px" placeholder="Dán bảng Blur..."></textarea>
+        </div>
+      </div>
+
+      <div id="pullCheckResult" style="margin-top: 15px; display: none;">
+          <div class="result-box mb-2" style="background: #fff1f2; border: 1px solid #fecdd3; padding: 5px;">
+            <h4 style="margin:0; color:#be123c;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
+            <ul id="listMissingHC" style="padding-left: 20px; font-size: 12px; color: #881337;"></ul>
+          </div>
+          <div class="result-box" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 5px;">
+            <h4 style="margin:0; color:#1e40af;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
+            <ul id="listMissingEve" style="padding-left: 20px; font-size: 12px; color: #1e3a8a;"></ul>
+          </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="pullCheckCancel" class="btn">Đóng</button>
+      <button id="btnAnalyzePull" class="btn btn-primary">🔍 Kiểm tra</button>
+    </div>
+  </div>
+</div>
   
-  <div id="statsModal" class="modal hidden" aria-hidden="true">
+  <div id="statsModal" class="modal hidden">
     <div class="modal-backdrop" id="statsModalBackdrop"></div>
     <div class="modal-card large">
        <div class="modal-header">
-          <div class="title">Thống kê đơn hàng</div>
+          <div class="title">Thống kê</div>
           <div class="header-actions">
              <div class="date-range-selector">
-                <button class="range-btn active" data-days="7">7 ngày</button>
-                <button class="range-btn" data-days="15">15 ngày</button>
-                <button class="range-btn" data-days="30">30 ngày</button>
+                <button class="range-btn active" data-days="7">7d</button>
+                <button class="range-btn" data-days="30">30d</button>
              </div>
              <button id="btnReloadStats" class="btn btn-sm">↻</button>
              <button class="icon-btn-close" id="statsModalClose">✕</button>
@@ -319,76 +330,41 @@
     </div>
   </div>
 
-  <div id="confirmModal" class="modal hidden" aria-hidden="true">
+  <div id="confirmModal" class="modal hidden">
     <div class="modal-backdrop" id="confirmModalBackdrop"></div>
     <div class="modal-card confirm-card">
       <div class="modal-header no-border">
          <div class="title" id="confirmTitle">Xác nhận</div>
       </div>
       <div class="modal-body pt-0">
-         <p id="confirmMessage">Bạn có chắc không?</p>
+         <p id="confirmMessage">?</p>
       </div>
       <div class="modal-footer no-border">
          <button id="btnConfirmNo" class="btn">Không</button>
-         <button id="btnConfirmYes" class="btn btn-danger">Có, thực hiện</button>
+         <button id="btnConfirmYes" class="btn btn-danger">Có</button>
       </div>
     </div>
   </div>
 
   <div id="loadingOverlay" class="hidden"><div class="spinner"></div></div>
   <div id="toast" class="toast hidden"></div>
-  <div id="jackpotToast" class="jackpot-toast hidden"></div>
   <div id="celebrateOverlay" class="hidden"></div>
   <canvas id="confettiCanvas"></canvas>
 
   <div id="winnerModal" class="modal hidden" style="z-index: 9999;">
-    <div class="modal-backdrop" id="winnerBackdrop"></div>
-    <div class="modal-card winner-card">
-      <div class="winner-content">
-        <div class="winner-icon">🏆</div>
-        <div class="winner-label">NGƯỜI ĐƯỢC CHỌN</div>
-        <div id="winnerNameDisplay" class="winner-name">Nguyễn Văn A</div>
-        <div id="winnerDetailDisplay" class="winner-detail">Team Vẽ • Chiều tối</div>
-        <button id="btnCloseWinner" class="btn btn-gradient large mt-4">Tuyệt vời! 🎉</button>
-      </div>
+  <div class="modal-backdrop" id="winnerBackdrop"></div>
+  <div class="modal-card winner-card">
+    <div class="winner-content">
+      <div class="winner-icon">🏆</div>
+      <div class="winner-label">WINNER</div>
+      <div id="winnerNameDisplay" class="winner-name">...</div>
+      <div id="winnerDetailDisplay" class="winner-detail">...</div>
+      <button id="btnCloseWinner" class="btn btn-gradient large mt-4">OK 🎉</button>
     </div>
   </div>
+</div>
 
-  <script type="module">
-    (async function() {
-      console.log("🚀 Booting App...");
-      
-      const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
-      const isElectron = navigator.userAgent.toLowerCase().includes(' electron/');
-
-      // 1. Tải Bridge/Shim trước
-      if (isNative) {
-        console.log("📱 Mode: Native App (iPad/iPhone)");
-        try {
-          await import('./bridge.js'); // Đợi tải xong bridge.js và store-mobile.js
-          console.log("✅ Bridge loaded!");
-        } catch (e) {
-          console.error("❌ Lỗi tải Bridge:", e);
-        }
-      } 
-      else if (!isElectron) {
-        console.log("☁️ Mode: Web/Cloud");
-        await new Promise((resolve) => {
-          const s = document.createElement('script');
-          s.src = './ios-shim.js';
-          s.onload = resolve;
-          document.body.appendChild(s);
-        });
-      }
-      
-      // 2. SAU ĐÓ mới tải Renderer (Giao diện)
-      console.log("🎨 Loading UI...");
-      const script = document.createElement('script');
-      script.src = './renderer.js';
-      script.defer = true;
-      document.body.appendChild(script);
-      
-    })();
-  </script>
+  <script src="./ios-shim.js"></script>
+  <script src="./renderer.js" defer></script>
 </body>
 </html>
