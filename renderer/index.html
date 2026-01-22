@@ -86,9 +86,11 @@
         </div>
 
         <div class="main-actions">
-           <div class="btn-group-pull">
-              <button id="btnOpenPullCheck" class="btn btn-outline warn">⚡ Check</button>
+            <div class="btn-group-pull">
+              <button id="btnOpenPullCheck" class="btn btn-outline warn">⚡ Check Pull</button>
+              <button id="btnOpenKpiModal" class="btn btn-outline success">📊 Tính KPI</button>
            </div>
+
            <button id="btnOpenStatsModal" class="btn btn-ghost">📈</button>
            <button id="btnOpenExportModal" class="btn btn-ghost">🚀</button>
            <button id="btnOpenPasteModal" class="btn btn-ghost">📋</button>
@@ -195,6 +197,87 @@
       </div>
     </div>
   </div>
+<div id="kpiModal" class="modal hidden">
+  <div class="modal-backdrop" id="kpiModalBackdrop"></div>
+  <div class="modal-card large" style="width: 100%; height: 90vh;">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap: 10px;">
+        <div class="title">📊 Tính KPI</div>
+        <button id="btnConfigKpiList" class="btn btn-sm btn-outline" style="font-size:12px;">⚙️ DS NV</button>
+      </div>
+      <button class="icon-btn-close" id="kpiModalX">✕</button>
+    </div>
+    
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px; height: 100%;">
+      <div class="kpi-input-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px;">
+        <div class="input-col">
+          <label class="kpi-label meear" style="color:#ea580c;font-weight:bold;font-size:11px;">Meear</label>
+          <textarea id="txtKpiMeear" class="kpi-textarea" style="height:80px" placeholder="Dán Meear..."></textarea>
+        </div>
+        <div class="input-col">
+          <label class="kpi-label blur" style="color:#2563eb;font-weight:bold;font-size:11px;">Blur</label>
+          <textarea id="txtKpiBlur" class="kpi-textarea" style="height:80px" placeholder="Dán Blur..."></textarea>
+        </div>
+        <div class="input-col">
+          <label class="kpi-label print" style="color:#16a34a;font-weight:bold;font-size:11px;">Print</label>
+          <textarea id="txtKpiPrint" class="kpi-textarea" style="height:80px" placeholder="Dán Print..."></textarea>
+        </div>
+      </div>
+
+      <div id="kpiResultContainer" class="kpi-result-box hidden" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="result-toolbar" style="padding:5px; background:#f9fafb; display:flex; justify-content:space-between;">
+           <strong>Kết quả:</strong>
+           <button id="btnCopyKpi" class="btn btn-primary btn-sm">📋 Copy</button>
+        </div>
+        <div class="table-scroll-wrapper" style="overflow-y:auto; flex:1;">
+            <table class="kpi-table" style="width:100%;">
+              <thead>
+                <tr style="background:#f3f4f6;">
+                  <th style="text-align:left;">NV</th>
+                  <th class="col-num" style="text-align:right;">Print</th>
+                  <th class="col-num" style="text-align:right;">Blur</th>
+                  <th class="col-num" style="text-align:right;">Meear</th>
+                  <th class="col-num" style="text-align:right;">Tổng</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyKpi"></tbody>
+            </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button id="btnKpiCancel" class="btn">Đóng</button>
+      <button id="btnAnalyzeKpi" class="btn btn-primary large">🚀 Tính Ngay</button>
+    </div>
+  </div>
+</div>
+
+<div id="kpiConfigModal" class="modal hidden" style="z-index: 2000;">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card" style="width: 600px; height: 80vh;">
+    <div class="modal-header">
+      <div class="title">⚙️ Cấu hình DS NV</div>
+      <button class="icon-btn-close" id="btnCloseKpiConfig">✕</button>
+    </div>
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px; height: 100%;">
+      <div style="display: flex; flex-direction: column; flex:1;">
+        <label style="font-weight:bold; margin-bottom:5px;">TEAM 2D</label>
+        <textarea id="txtConfig2D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Mỗi tên 1 dòng..."></textarea>
+      </div>
+      <div style="display: flex; flex-direction: column; flex:1;">
+        <label style="font-weight:bold; margin-bottom:5px;">TEAM 3D</label>
+        <textarea id="txtConfig3D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Mỗi tên 1 dòng..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btnResetDefaultList" class="btn btn-outline warn">Mặc định</button>
+      <div style="flex:1"></div>
+      <button id="btnCancelKpiConfig" class="btn">Hủy</button>
+      <button id="btnSaveKpiConfig" class="btn btn-primary">💾 Lưu</button>
+    </div>
+  </div>
+</div>
 
   <div id="exportModal" class="modal hidden">
     <div class="modal-backdrop" id="exportModalBackdrop"></div>
