@@ -11,6 +11,21 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <div id="app-splash" style="
+      position: fixed; inset: 0; background: #ffffff; z-index: 99999; 
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.5s ease;
+  ">
+      <div style="font-size: 50px; margin-bottom: 20px;">🛡️</div>
+      <div class="spinner" style="
+          width: 40px; height: 40px; border: 4px solid #f3f3f3; 
+          border-top: 4px solid #4f46e5; border-radius: 50%; 
+          animation: spin 1s linear infinite;"></div>
+      <div style="margin-top: 15px; color: #6b7280; font-size: 14px; font-weight: 500;">
+          Đang tải dữ liệu...
+      </div>
+  </div>
+  <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
 
   <header class="appbar">
     <div class="appbar-left">
@@ -366,5 +381,21 @@
 
   <script src="./ios-shim.js"></script>
   <script src="./renderer.js" defer></script>
+    <div id="app-splash" style="
+      position: fixed; inset: 0; background: #ffffff; z-index: 99999; 
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.5s ease;
+  ">
+      <div style="font-size: 50px; margin-bottom: 20px;">🛡️</div>
+      <div class="spinner" style="
+          width: 40px; height: 40px; border: 4px solid #f3f3f3; 
+          border-top: 4px solid #4f46e5; border-radius: 50%; 
+          animation: spin 1s linear infinite;"></div>
+      <div style="margin-top: 15px; color: #6b7280; font-size: 14px; font-weight: 500;">
+          Đang tải dữ liệu...
+      </div>
+  </div>
+  <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+
 </body>
 </html>
