@@ -370,56 +370,69 @@
 
 <div id="pullCheckModal" class="modal hidden">
   <div class="modal-backdrop" id="pullCheckBackdrop"></div>
-  <div class="modal-card large" style="max-width: 95vw;"> 
+  <div class="modal-card large" style="width: 95vw; max-width: 1000px; height: 90vh; display: flex; flex-direction: column;"> 
+    
     <div class="modal-header">
       <div class="title">⚡ Check Pull <span id="pullCheckDateDisplay"></span></div>
       <button class="icon-btn-close" id="pullCheckX">✕</button>
     </div>
-    <div class="modal-body">
-      <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 10px;">
-        <div>
-          <label style="color:#ea580c;font-weight:600">MEEAR</label>
-          <textarea id="pasteMeearArea" class="paste-textarea" style="height:100px" placeholder="Dán bảng Meear..."></textarea>
+
+    <div class="modal-body" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 15px; gap: 15px;">
+      
+      <div style="display: flex; gap: 15px; height: 130px; flex-shrink: 0;">
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <label style="color:#ea580c; font-weight:600; font-size: 12px; margin-bottom: 4px;">MEEAR (Paste vào đây)</label>
+          <textarea id="pasteMeearArea" class="paste-textarea" style="flex: 1; height: 100%; resize: none;" placeholder="Dán bảng Meear..."></textarea>
         </div>
-        <div>
-          <label style="color:#2563eb;font-weight:600">BLUR</label>
-          <textarea id="pasteBlurArea" class="paste-textarea" style="height:100px" placeholder="Dán bảng Blur..."></textarea>
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <label style="color:#2563eb; font-weight:600; font-size: 12px; margin-bottom: 4px;">BLUR (Paste vào đây)</label>
+          <textarea id="pasteBlurArea" class="paste-textarea" style="flex: 1; height: 100%; resize: none;" placeholder="Dán bảng Blur..."></textarea>
         </div>
       </div>
 
-      <div id="pullCheckResult" style="margin-top: 15px; display: none; height: 100%; display: flex; flex-direction: column;">
-    <div class="result-box mb-2" style="background: #fff1f2; border: 1px solid #fecdd3; padding: 0; display: flex; flex-direction: column; height: 50%;">
-      <div style="padding: 8px; border-bottom: 1px solid #fecdd3; background: #fff0f2; display: flex; justify-content: space-between; align-items: center;">
-          <h4 style="margin:0; color:#be123c; font-size: 13px;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
-          <input id="searchMissingHC" class="mini-search" placeholder="Lọc tên/team..." />
-          <button id="btnCopyMissingHC" class="mini-btn-copy" title="Copy danh sách">📋</button>
+      <div style="display: flex; justify-content: flex-end; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+          <button id="btnAnalyzePull" class="btn btn-primary large" style="width: 200px;">🔍 Phân tích ngay</button>
       </div>
-      <div id="tagsMissingHC" class="tags-row" style="padding: 5px 8px; border-bottom: 1px dashed #fecdd3;"></div>
-      <div class="missing-list-container">
-          <ul id="listMissingHC" style="padding: 0; margin: 0; list-style: none;"></ul>
-      </div>
-    </div>
 
-    <div class="result-box" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 0; display: flex; flex-direction: column; height: 50%;">
-      <div style="padding: 8px; border-bottom: 1px solid #bfdbfe; background: #eff6ff; display: flex; justify-content: space-between; align-items: center;">
-          <h4 style="margin:0; color:#1e40af; font-size: 13px;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
-          <input id="searchMissingEve" class="mini-search" placeholder="Lọc tên/team..." />
-          <button id="btnCopyMissingEve" class="mini-btn-copy" title="Copy danh sách">📋</button>
-      </div>
-      <div id="tagsMissingEve" class="tags-row" style="padding: 5px 8px; border-bottom: 1px dashed #bfdbfe;"></div>
-      <div class="missing-list-container">
-          <ul id="listMissingEve" style="padding: 0; margin: 0; list-style: none;"></ul>
-      </div>
-    </div>
-</div>
+      <div id="pullCheckResult" style="display: none; flex: 1; gap: 15px; overflow: hidden;">
+          
+          <div class="result-box" style="flex: 1; background: #fff1f2; border: 1px solid #fecdd3; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px;">
+            <div style="padding: 8px; background: #fff0f2; border-bottom: 1px solid #fecdd3; display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin:0; color:#be123c; font-size: 14px;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
+                <div style="display:flex; gap:5px">
+                   <input id="searchMissingHC" class="mini-search" placeholder="Lọc..." style="width: 80px;" />
+                   <button id="btnCopyMissingHC" class="mini-btn-copy" title="Copy">📋</button>
+                </div>
+            </div>
+            <div id="tagsMissingHC" class="tags-row" style="padding: 5px; border-bottom: 1px dashed #fecdd3; background: #fff; min-height: 30px;"></div>
+            <div class="missing-list-container" style="flex: 1; overflow-y: auto; background: white; border: none; border-radius: 0;">
+                <ul id="listMissingHC" style="padding: 0; margin: 0; list-style: none;"></ul>
+            </div>
+          </div>
 
+          <div class="result-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px;">
+            <div style="padding: 8px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin:0; color:#1e40af; font-size: 14px;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
+                <div style="display:flex; gap:5px">
+                   <input id="searchMissingEve" class="mini-search" placeholder="Lọc..." style="width: 80px;" />
+                   <button id="btnCopyMissingEve" class="mini-btn-copy" title="Copy">📋</button>
+                </div>
+            </div>
+            <div id="tagsMissingEve" class="tags-row" style="padding: 5px; border-bottom: 1px dashed #bfdbfe; background: #fff; min-height: 30px;"></div>
+            <div class="missing-list-container" style="flex: 1; overflow-y: auto; background: white; border: none; border-radius: 0;">
+                <ul id="listMissingEve" style="padding: 0; margin: 0; list-style: none;"></ul>
+            </div>
+          </div>
+
+      </div>
     </div>
+    
     <div class="modal-footer">
       <button id="pullCheckCancel" class="btn">Đóng</button>
-      <button id="btnAnalyzePull" class="btn btn-primary">🔍 Kiểm tra</button>
     </div>
   </div>
 </div>
+
   
   <div id="statsModal" class="modal hidden">
     <div class="modal-backdrop" id="statsModalBackdrop"></div>
