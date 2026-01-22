@@ -387,16 +387,32 @@
         </div>
       </div>
 
-      <div id="pullCheckResult" style="margin-top: 15px; display: none;">
-          <div class="result-box mb-2" style="background: #fff1f2; border: 1px solid #fecdd3; padding: 5px;">
-            <h4 style="margin:0; color:#be123c;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
-            <ul id="listMissingHC" style="padding-left: 20px; font-size: 12px; color: #881337;"></ul>
-          </div>
-          <div class="result-box" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 5px;">
-            <h4 style="margin:0; color:#1e40af;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
-            <ul id="listMissingEve" style="padding-left: 20px; font-size: 12px; color: #1e3a8a;"></ul>
-          </div>
+      <div id="pullCheckResult" style="margin-top: 15px; display: none; height: 100%; display: flex; flex-direction: column;">
+    <div class="result-box mb-2" style="background: #fff1f2; border: 1px solid #fecdd3; padding: 0; display: flex; flex-direction: column; height: 50%;">
+      <div style="padding: 8px; border-bottom: 1px solid #fecdd3; background: #fff0f2; display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="margin:0; color:#be123c; font-size: 13px;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
+          <input id="searchMissingHC" class="mini-search" placeholder="Lọc tên/team..." />
+          <button id="btnCopyMissingHC" class="mini-btn-copy" title="Copy danh sách">📋</button>
       </div>
+      <div id="tagsMissingHC" class="tags-row" style="padding: 5px 8px; border-bottom: 1px dashed #fecdd3;"></div>
+      <div class="missing-list-container">
+          <ul id="listMissingHC" style="padding: 0; margin: 0; list-style: none;"></ul>
+      </div>
+    </div>
+
+    <div class="result-box" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 0; display: flex; flex-direction: column; height: 50%;">
+      <div style="padding: 8px; border-bottom: 1px solid #bfdbfe; background: #eff6ff; display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="margin:0; color:#1e40af; font-size: 13px;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
+          <input id="searchMissingEve" class="mini-search" placeholder="Lọc tên/team..." />
+          <button id="btnCopyMissingEve" class="mini-btn-copy" title="Copy danh sách">📋</button>
+      </div>
+      <div id="tagsMissingEve" class="tags-row" style="padding: 5px 8px; border-bottom: 1px dashed #bfdbfe;"></div>
+      <div class="missing-list-container">
+          <ul id="listMissingEve" style="padding: 0; margin: 0; list-style: none;"></ul>
+      </div>
+    </div>
+</div>
+
     </div>
     <div class="modal-footer">
       <button id="pullCheckCancel" class="btn">Đóng</button>
