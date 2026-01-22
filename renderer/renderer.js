@@ -1586,6 +1586,18 @@ async function loadDay() {
     state.statuses = statuses || {};
   }
 
+  // --- LOGIC MỚI: Mặc định Chủ Nhật là OFF hết nếu chưa có dữ liệu ---
+  const d = new Date(state.dateISO);
+  if (d.getDay() === 0) { // 0 là Chủ Nhật
+      // Nếu statuses rỗng (chưa ai chấm công), set mặc định OFF toàn bộ
+      if (Object.keys(state.statuses).length === 0) {
+          (state.employees || []).forEach(emp => {
+              state.statuses[emp.name] = { off: 'allday', evening: false, ot: [] };
+          });
+      }
+  }
+  // ------------------------------------------------------------------
+
   // MIGRATE: off:boolean -> off:'allday' | null
   for (const [name, st] of Object.entries(state.statuses)) {
     if (typeof st.off === 'boolean') {
@@ -3270,13 +3282,26 @@ function extractOtFromText(text) {
   return shifts;
 }
 
+// 1. HÀM ĐIỀU PHỐI (Ngắn gọn)
 async function handlePasteApply() {
   const text = $('#pasteTextarea').value.trim();
   if (!text) return closePasteModal();
 
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  
+  // Kiểm tra: Nếu có dòng nào chứa nhiều ký tự Tab (>5) -> Là bảng Excel
+  const isScheduleTable = lines.some(l => l.split('\t').length > 5);
+
+  if (isScheduleTable) {
+      await handlePasteScheduleTable(lines); // Chạy logic bảng Excel
+  } else {
+      await handlePasteOtText(lines);      // Chạy logic Text cũ (đã đổi tên)
+  }
+}
+
+// 2. HÀM XỬ LÝ OT DẠNG TEXT (Đây chính là code cũ của bạn, giữ nguyên logic)
+async function handlePasteOtText(lines) {
   let updatedCount = 0;
-  const notFoundNames = [];
 
   // 1. Chuẩn bị Map tra cứu tên
   const employeeNameMap = new Map();
@@ -3302,6 +3327,7 @@ async function handlePasteApply() {
     } else {
       let tempName = line;
       if (tempName.includes('(OT:')) tempName = tempName.split('(OT:')[0];
+      // Các bước làm sạch tên đặc thù của bạn
       tempName = tempName.replace(/\s*-\s*Chiều tối/i, '').replace(/\s*-\s*Team.*/i, '');
       tempName = tempName.replace(/\s*-\s*Easy Dễ Mùa Sale/i, '');
       
@@ -3315,6 +3341,7 @@ async function handlePasteApply() {
     const originalName = employeeNameMap.get(normalizedInputName);
 
     if (!originalName) {
+       // Logic log skip cũ
        if (rawName && rawName.length > 3 && isNaN(parseInt(rawName[0]))) {
          // console.log('Skip:', rawName); 
        }
@@ -3347,20 +3374,18 @@ async function handlePasteApply() {
           }
       });
 
-      // === SỬA LỖI SẮP XẾP TẠI ĐÂY ===
-      // Thay vì dùng localeCompare (xếp theo chuỗi), ta dùng getTimeValueMinutes (xếp theo lượng thời gian)
+      // === LOGIC SẮP XẾP XỊN CỦA BẠN ===
+      // Dùng hàm getTimeValueMinutes để xếp đúng giờ qua đêm (1h30 > 21h00)
       uniqueShifts.sort((a, b) => {
           return getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start);
       });
-      // Logic: 
-      // 17h00 -> 1020 phút
-      // 21h30 -> 1290 phút
-      // 01h30 -> 25h30 -> 1530 phút
-      // Kết quả: 17h -> 21h -> 1h30 (Đúng ý bạn)
 
       // Lưu vào state
       state.statuses[name] = normStatus(state.statuses[name]);
-      state.statuses[name].ot = uniqueShifts;
+      state.statuses[name].ot = uniqueShifts; // Lưu object {start, end} nếu code render hỗ trợ, hoặc convert sang string
+      // LƯU Ý: Nếu code render của bạn cần chuỗi "HH:mm-HH:mm", hãy map lại ở đây:
+      // state.statuses[name].ot = uniqueShifts.map(s => ...); 
+      // Nhưng theo đoạn code bạn gửi thì bạn đang gán thẳng uniqueShifts. Tôi sẽ giữ nguyên.
       
       updatedCount++;
   }
@@ -3375,6 +3400,132 @@ async function handlePasteApply() {
   } else {
       showToast('⚠️ Không tìm thấy dữ liệu OT hợp lệ nào.');
   }
+}
+
+// --- HÀM XỬ LÝ DÁN BẢNG LỊCH TRÌNH (ĐÃ FIX LỖI GIỜ OT) ---
+// --- HÀM XỬ LÝ DÁN BẢNG LỊCH TRÌNH (ĐÃ FIX LỖI "Lỗi giờ / undefined") ---
+async function handlePasteScheduleTable(lines) {
+  const d = new Date(state.dateISO);
+  const isSunday = d.getDay() === 0;
+
+  // Nếu là Chủ Nhật, reset toàn bộ về OFF
+  if (isSunday) {
+     (state.employees || []).forEach(emp => {
+         state.statuses[emp.name] = { off: 'allday', evening: false, ot: [] };
+     });
+  }
+
+  // Xác định cột bắt đầu
+  let baseIdx = 2; // T7
+  if (isSunday) baseIdx = 11; // CN
+
+  let updatedCount = 0;
+  const employeeNameMap = new Map();
+  (state.employees || []).forEach(e => {
+    employeeNameMap.set(normalizeNameForMatching(e.name), e.name);
+  });
+
+  for (const line of lines) {
+      const parts = line.split('\t');
+      // Bỏ qua header
+      if (parts.length < 2 || parts[1].toUpperCase().includes('HỌ VÀ TÊN')) continue;
+
+      const rawName = parts[1].trim();
+      const originalName = employeeNameMap.get(normalizeNameForMatching(rawName));
+      
+      if (!originalName) continue;
+
+      // Helper lấy dữ liệu thô (Status + SL)
+      const getShiftRaw = (offset) => ({ 
+          status: (parts[baseIdx + offset] || '').trim(), 
+          slText: (parts[baseIdx + offset + 1] || '').trim() 
+      });
+
+      // Cấu hình 4 ca làm việc
+      const shiftsData = [
+          { data: getShiftRaw(0), defH: 8, defM: 0 },   // Sáng
+          { data: getShiftRaw(2), defH: 13, defM: 30 }, // Chiều
+          { data: getShiftRaw(4), defH: 17, defM: 30 }, // Tối
+          { data: getShiftRaw(6), defH: 22, defM: 0 }   // Đêm
+      ];
+
+      let currentSt = state.statuses[originalName] || { off: 'allday', evening: false, ot: [] };
+      currentSt.ot = []; // Reset OT
+
+      // Cờ xác định trạng thái làm việc
+      let workMorn = false, workAft = false, workEve = false, workNight = false;
+
+      shiftsData.forEach((shift, idx) => {
+          const { status, slText } = shift.data;
+          const textToScan = `${status} ${slText}`;
+          
+          let hasWork = false;
+          let hasOT = false;
+
+          // 1. Tìm giờ OT dạng text (VD: 17h-21h)
+          const foundShifts = extractOtFromText(textToScan);
+          if (foundShifts.length > 0) {
+              foundShifts.forEach(s => {
+                   const fmt = (t) => t.split(':').map(x => x.padStart(2, '0')).join(':');
+                   // --- FIX QUAN TRỌNG: Lưu dạng Object {start, end} ---
+                   currentSt.ot.push({ start: fmt(s.start), end: fmt(s.end) });
+              });
+              hasWork = true;
+              hasOT = true;
+          } 
+          
+          // 2. Nếu không có text, tìm số giờ (SL)
+          if (!hasOT) {
+              const slVal = parseFloat(slText.replace(',', '.'));
+              if (!isNaN(slVal) && slVal > 0) {
+                  const startMins = shift.defH * 60 + shift.defM;
+                  const endMins = startMins + (slVal * 60);
+                  
+                  let endH = Math.floor(endMins / 60);
+                  let endM = endMins % 60;
+                  if (endH >= 24) endH -= 24;
+
+                  const fmt = (h, m) => `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                  // --- FIX QUAN TRỌNG: Lưu dạng Object ---
+                  currentSt.ot.push({ start: fmt(shift.defH, shift.defM), end: fmt(endH, endM) });
+                  hasWork = true;
+              }
+          }
+
+          // 3. Kiểm tra "BT" (Bình thường) -> Có làm việc
+          if (status.toUpperCase().includes('BT')) {
+              hasWork = true;
+          }
+
+          if (idx === 0) workMorn = hasWork;
+          if (idx === 1) workAft = hasWork;
+          if (idx === 2) workEve = hasWork;
+          if (idx === 3) workNight = hasWork;
+      });
+
+      // Cập nhật trạng thái OFF
+      if (workMorn && workAft) currentSt.off = null;
+      else if (workMorn && !workAft) currentSt.off = 'afternoon';
+      else if (!workMorn && workAft) currentSt.off = 'morning';
+      else if (!workMorn && !workAft) currentSt.off = 'allday';
+
+      // Cập nhật trạng thái Chiều tối
+      if (workEve || workNight) currentSt.evening = true;
+      else currentSt.evening = false;
+
+      // Sắp xếp OT (Dùng hàm getTimeValueMinutes để xếp đúng giờ qua đêm)
+      currentSt.ot.sort((a, b) => {
+          return getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start);
+      });
+
+      state.statuses[originalName] = currentSt;
+      updatedCount++;
+  }
+
+  await saveDay();
+  renderTable();
+  closePasteModal();
+  showToast(`✅ Đã cập nhật ${updatedCount} nhân viên!`);
 }
 
 function setupChipFilters() {
@@ -3604,6 +3755,23 @@ async function init() {
   }
 }
 
+// --- Hàm tiện ích: Xóa dấu Tiếng Việt ---
+function removeVietnameseTones(str) {
+    if (!str) return '';
+    str = str.toLowerCase();
+    str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+    str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+    str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+    str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+    str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+    str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+    str = str.replace(/đ/g, "d");
+    // Bỏ các ký tự đặc biệt nếu cần, nhưng giữ lại dấu cách
+    str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, ""); 
+    str = str.replace(/\u02C6|\u0306|\u031B/g, ""); 
+    return str.trim();
+}
+
 function setupDateRangeSelector() {
   const selector = document.querySelector('.date-range-selector');
   if (!selector) return;
@@ -3674,24 +3842,29 @@ const countMissingEve = $('#countMissingEve');
 
 const pullCheckDateDisplay = $('#pullCheckDateDisplay'); // <--- Thêm biến này
 
-// 1. Hàm mở Modal (Cập nhật ngày đang chọn)
+// 1. Hàm mở Modal (ĐÃ CẬP NHẬT: Không reset dữ liệu)
 function openPullCheckModal() {
-  // Lấy ngày đang chọn trên lịch
+  // Lấy ngày đang chọn trên lịch để hiển thị cho đúng context
   const currentDate = $('#datePicker').value; 
-  
-  // Hiển thị ngày đó lên tiêu đề Modal để user biết đang check ngày nào
-  // Chuyển format YYYY-MM-DD sang DD/MM/YYYY cho dễ nhìn (tùy chọn)
   const [y, m, d] = currentDate.split('-');
   pullCheckDateDisplay.textContent = `${d}/${m}/${y}`;
 
-  // Reset dữ liệu cũ
-  pasteMeearArea.value = '';
-  pasteBlurArea.value = '';
-  pullCheckResult.style.display = 'none';
+  // --- ĐÃ XÓA CÁC DÒNG RESET DƯỚI ĐÂY ---
+  // pasteMeearArea.value = '';
+  // pasteBlurArea.value = '';
+  // pullCheckResult.style.display = 'none';
+  // ---------------------------------------
+  
+  // Nếu trước đó đã có kết quả phân tích (đang hiện), thì giữ nguyên
+  // Nếu chưa có (display='none') thì thôi.
   
   pullCheckModal.classList.remove('hidden');
   pullCheckModal.setAttribute('aria-hidden', 'false');
-  setTimeout(() => pasteMeearArea.focus(), 50);
+  
+  // Chỉ focus nếu ô trống
+  if (!pasteMeearArea.value) {
+    setTimeout(() => pasteMeearArea.focus(), 50);
+  }
 }
 
 // 2. Hàm đóng Modal
@@ -3746,121 +3919,211 @@ function parsePullData(text) {
   return foundNames;
 }
 
-// 4. Hàm Phân tích (Core Logic)
-// --- Thay thế hàm analyzePullData MỚI ---
+// --- Code mới cho file renderer.js ---
+
+// 1. Hàm Phân tích (Core Logic) - Đã cập nhật để lấy thêm thông tin Team
 function analyzePullData() {
-  const meearText = pasteMeearArea.value;
-  const blurText = pasteBlurArea.value;
+  const meearText = $('#pasteMeearArea').value;
+  const blurText = $('#pasteBlurArea').value;
 
   if (!meearText && !blurText) {
     showToast('⚠️ Bạn chưa dán dữ liệu nào cả!');
     return;
   }
 
-  // 1. Lấy danh sách đã pull từ text
-  const pulledMeear = parsePullData(meearText); // List tên đã làm Meear
-  const pulledBlur = parsePullData(blurText);   // List tên đã làm Blur
+  const pulledMeear = parsePullData(meearText);
+  const pulledBlur = parsePullData(blurText);
 
   const missingHC = [];
   const missingEve = [];
 
-  // 2. Duyệt qua danh sách nhân viên để kiểm tra
   (state.employees || []).forEach(emp => {
-    // --- LỌC TEAM: Bỏ qua Lead và Vẽ ---
-    const team = (emp.team || '').toLowerCase();
-    if (team.includes('lead') || team === 'vẽ' || team === 've' || team.includes('team vẽ')) {
+    // Lọc bỏ Lead/Vẽ
+    const team = (emp.team || '').trim(); // Lấy tên team chuẩn
+    const teamLower = team.toLowerCase();
+    if (teamLower.includes('lead') || teamLower === 'vẽ' || teamLower === 've' || teamLower.includes('team vẽ')) {
         return; 
     }
 
-    // --- LẤY TRẠNG THÁI NGÀY ĐANG XEM ---
     const st = normStatus(state.statuses[emp.name] || {});
     const offVal = st.off || null;
     const isEvening = !!st.evening;
     const empNameClean = cleanNameForMatching(emp.name);
 
-    // --- LOGIC SO SÁNH 2 SITE (QUAN TRỌNG) ---
-    
-    // Kiểm tra xem có trong danh sách Meear không
     const inMeear = [...pulledMeear].some(n => empNameClean.includes(n) || n.includes(empNameClean));
-    
-    // Kiểm tra xem có trong danh sách Blur không
     const inBlur = [...pulledBlur].some(n => empNameClean.includes(n) || n.includes(empNameClean));
 
-    // ĐIỀU KIỆN ĐỦ: Phải có cả 2 mới được tính là xong
     if (inMeear && inBlur) return; 
 
-    // Xác định loại thiếu
-    let missingType = 'both'; // Mặc định thiếu cả 2
-    if (inMeear && !inBlur) missingType = 'blur';   // Đã làm Meear -> Thiếu Blur
-    if (!inMeear && inBlur) missingType = 'meear';  // Đã làm Blur -> Thiếu Meear
+    let missingType = 'both';
+    if (inMeear && !inBlur) missingType = 'blur';
+    if (!inMeear && inBlur) missingType = 'meear';
 
-    // Tạo object dữ liệu để hiển thị
-    const missingItem = { name: emp.name, type: missingType };
+    // Đẩy đủ thông tin: Tên, Team, Loại thiếu
+    const missingItem = { name: emp.name, type: missingType, team: team };
 
-    // --- PHÂN LOẠI CA LÀM VIỆC ---
-    if (offVal === 'allday') return; // Nghỉ cả ngày thì bỏ qua
+    if (offVal === 'allday') return;
 
     if (isEvening) {
-      // Ca Chiều Tối (trừ khi OFF chiều/cả ngày)
       if (offVal !== 'afternoon' && offVal !== 'allday') {
          missingEve.push(missingItem);
       }
     } else {
-      // Ca Hành Chính (trừ khi OFF cả ngày)
       if (offVal !== 'allday') { 
          missingHC.push(missingItem);
       }
     }
   });
 
-  // Hiển thị kết quả
-  renderMissingList(listMissingHC, missingHC, countMissingHC);
-  renderMissingList(listMissingEve, missingEve, countMissingEve);
+  // Gọi hàm render mới với ID suffix ('HC' hoặc 'Eve')
+  renderPullResult('HC', missingHC);
+  renderPullResult('Eve', missingEve);
 
-  pullCheckResult.style.display = 'block';
+  $('#pullCheckResult').style.display = 'block';
 }
 
-// --- Thay thế hàm renderMissingList MỚI ---
-function renderMissingList(ulElement, list, countElement) {
-  ulElement.innerHTML = '';
-  countElement.textContent = list.length;
+// 2. Hàm Render Kết Quả Pull (Đã Fix lỗi tìm kiếm Tiếng Việt)
+function renderPullResult(suffix, listData) {
+  const ul = document.getElementById(`listMissing${suffix}`);
+  const countSpan = document.getElementById(`countMissing${suffix}`);
+  const tagsDiv = document.getElementById(`tagsMissing${suffix}`);
+  const searchInput = document.getElementById(`searchMissing${suffix}`);
+  const btnCopy = document.getElementById(`btnCopyMissing${suffix}`); // Lấy nút copy
+
+  if (!ul) return;
+
+  // Reset UI
+  ul.innerHTML = '';
+  tagsDiv.innerHTML = '';
+  searchInput.value = ''; 
   
-  if (list.length === 0) {
-    ulElement.innerHTML = '<li style="color:green; list-style:none; font-weight:500;">✅ Đã pull đủ cả 2 site!</li>';
+  const updateCount = () => {
+    // Chỉ đếm những dòng đang hiển thị (không bị ẩn bởi search)
+    const visibleItems = ul.querySelectorAll('li:not(.hidden-by-search)');
+    countSpan.textContent = visibleItems.length;
+    
+    if (visibleItems.length === 0 && ul.children.length === 0) {
+       ul.innerHTML = `
+        <div class="empty-state-small">
+          <span style="font-size: 20px;">✅</span>
+          <span>Đã pull đủ cả 2 site!</span>
+        </div>`;
+    }
+  };
+
+  if (listData.length === 0) {
+    updateCount();
     return;
   }
 
-  list.forEach(item => {
-    // item bây giờ là object {name, type}
+  // --- RENDER LIST ---
+  listData.forEach(item => {
     const li = document.createElement('li');
     li.className = 'missing-item';
+    li.dataset.team = item.team; 
     
-    // Tạo nhãn (Badge) dựa trên loại thiếu
-    let badgeHtml = '';
-    if (item.type === 'both')  badgeHtml = `<span class="tag-note missing-both">Thiếu cả 2</span>`;
-    if (item.type === 'meear') badgeHtml = `<span class="tag-note missing-meear">Thiếu Meear</span>`;
-    if (item.type === 'blur')  badgeHtml = `<span class="tag-note missing-blur">Thiếu Blur</span>`;
+    // Tạo chuỗi tìm kiếm không dấu
+    const searchString = removeVietnameseTones(`${item.name} ${item.team}`);
+    li.dataset.search = searchString; 
 
+    let badgeClass = '', badgeText = '';
+    if (item.type === 'both')  { badgeClass = 'missing-both'; badgeText = 'Thiếu cả 2'; }
+    else if (item.type === 'meear') { badgeClass = 'missing-meear'; badgeText = 'Thiếu Meear'; }
+    else if (item.type === 'blur')  { badgeClass = 'missing-blur'; badgeText = 'Thiếu Blur'; }
+
+    // Thay nút 🗑️ thành ✅
     li.innerHTML = `
-      <div style="display:flex; align-items:center;">
-        <span style="font-weight:500">${item.name}</span>
-        ${badgeHtml}
+      <div class="missing-content">
+        <div style="display:flex; flex-direction:column; line-height:1.2;">
+           <span class="missing-name">${item.name}</span>
+           <span style="font-size:10px; color:#9ca3af;">${item.team}</span>
+        </div>
+        <span class="tag-note ${badgeClass}">${badgeText}</span>
       </div>
-      <span class="btn-remove-missing" title="Xóa dòng này">✕</span>
+      <button class="btn-mark-done" title="Đã check / Xin đơn" tabindex="-1">✅</button>
     `;
 
-    // Sự kiện xóa thủ công
-    li.querySelector('.btn-remove-missing').addEventListener('click', () => {
-        li.remove();
-        const currentCount = parseInt(countElement.textContent) || 0;
-        countElement.textContent = Math.max(0, currentCount - 1);
-        if (ulElement.children.length === 0) {
-            ulElement.innerHTML = '<li style="color:green; list-style:none; font-weight:500;">✅ Đã pull đủ cả 2 site!</li>';
-        }
+    // Sự kiện Click dấu Tick (Check) -> Xóa dòng
+    li.querySelector('.btn-mark-done').addEventListener('click', () => {
+        // Hiệu ứng mờ dần rồi biến mất
+        li.style.opacity = '0';
+        setTimeout(() => {
+             li.remove();
+             updateCount();
+        }, 150);
     });
 
-    ulElement.appendChild(li);
+    ul.appendChild(li);
   });
+  
+  countSpan.textContent = listData.length;
+
+  // --- RENDER TAGS ---
+  const teams = [...new Set(listData.map(i => i.team).filter(Boolean))].sort();
+  teams.forEach(teamName => {
+    const tag = document.createElement('span');
+    tag.className = 'team-filter-tag';
+    tag.textContent = `Bỏ ${teamName}`;
+    tag.title = `Check tất cả người thuộc team ${teamName}`;
+    tag.addEventListener('click', () => {
+        const itemsToRemove = ul.querySelectorAll(`li[data-team="${teamName}"]`);
+        itemsToRemove.forEach(el => el.remove());
+        tag.remove();
+        updateCount();
+    });
+    tagsDiv.appendChild(tag);
+  });
+
+  // --- LOGIC TÌM KIẾM ---
+  const newSearch = searchInput.cloneNode(true);
+  searchInput.parentNode.replaceChild(newSearch, searchInput);
+
+  newSearch.addEventListener('input', (e) => {
+    const term = removeVietnameseTones(e.target.value);
+    const items = ul.querySelectorAll('li.missing-item');
+    
+    items.forEach(li => {
+       const searchSource = li.dataset.search || '';
+       if (searchSource.includes(term)) {
+         li.classList.remove('hidden-by-search');
+         li.style.display = '';
+       } else {
+         li.classList.add('hidden-by-search');
+         li.style.display = 'none';
+       }
+    });
+    // Cập nhật lại số lượng hiển thị khi search
+    const visibleNow = ul.querySelectorAll('li:not(.hidden-by-search)').length;
+    countSpan.textContent = visibleNow;
+  });
+
+  // --- LOGIC NÚT COPY (MỚI) ---
+  if (btnCopy) {
+      // Clone để xóa event listener cũ nếu có
+      const newBtnCopy = btnCopy.cloneNode(true);
+      btnCopy.parentNode.replaceChild(newBtnCopy, btnCopy);
+
+      newBtnCopy.addEventListener('click', async () => {
+          // Chỉ copy những người đang HIỂN THỊ (không bị ẩn bởi search)
+          const visibleItems = ul.querySelectorAll('li:not(.hidden-by-search) .missing-name');
+          
+          if (visibleItems.length === 0) {
+              showToast('⚠️ Danh sách trống, không có gì để copy!');
+              return;
+          }
+
+          // Tạo nội dung copy
+          const names = Array.from(visibleItems).map(span => span.textContent.trim());
+          const content = `Pull thiếu\n\n${names.join('\n')}`;
+
+          try {
+              await window.api.copyText(content);
+              showToast(`✅ Đã copy ${names.length} cái tên!`);
+          } catch (err) {
+              showToast('❌ Lỗi copy clipboard');
+          }
+      });
+  }
 }
 
 // --- DÁN VÀO CUỐI FILE renderer.js ---
@@ -3876,10 +4139,324 @@ function cleanNameForMatching(fullName) {
     .trim();                   // Xóa khoảng trắng thừa
 }
 
+// ==========================================================
+// === KPI CALCULATION MODULE (FINAL VERSION) ===
+// ==========================================================
+
+// 1. Danh sách MẶC ĐỊNH (Dùng khi chưa có cấu hình riêng hoặc khi reset)
+const DEFAULT_LIST_2D = [
+  "Tăng Duy Khánh (DK)", "Ngô Sĩ Hùng (NH)", "Hà Duy Nam (DN)", "Nguyễn Xuân Vinh (XV)",
+  "Trần Hồng Quân (TQ)", "Đoàn Thanh Huyền (TH)", "Lê Minh Hiếu (LH)", "Phạm Thị Lan Phương (LP) - Online",
+  "Trần Đức Tuấn (TT)", "Hoàng Anh Toàn (AT)", "Nguyễn Hải Nam (NN) - Team Đào Tạo",
+  "Nguyễn Dạ Thảo (NT)", "Đặng Ngọc Huyền Trinh (HT)", "Nguyễn Xuân Duy (XD)",
+  "Vũ Thị Huyền Trang 2K (VT) - Team Đào Tạo", "Trần Thị Huyền Trang (THT) - Team Đào Tạo",
+  "Vũ Tiến Đạt (TD)", "Nguyễn Ánh Dương (AD)", "Vũ Minh Trí (MT)", "Phan Nhật Anh (PA)",
+  "Kiều Quang Khanh (KQK)", "Đỗ Đắc Đức (DDD)", "Nguyễn Đức Huy (DH)", "Chu Hoàng Nam (NC)",
+  "Nguyễn Phương Thúy (TNP)", "Nguyễn Văn Tú 01 (NVT)", "Nguyễn Anh Tú (NAT)",
+  "Nguyễn Quang Duy (NQD)", "Nguyễn Thị Hằng Ngân (NTHN)", "Bùi Văn Tân (BVT) - Idea",
+  "Trần Thị Thùy Trang (TTT) - Team Đào Tạo", "Nguyễn Kim Hoàng ( NKH ) - Team Đào Tạo",
+  "Bùi Thị Tú Anh ( BTTA ) - Team Đào Tạo", "Lê Quang Huy (QH) - Team Đào Tạo",
+  "Nguyễn Hoàng Huy (NHH) - Team Đào Tạo", "Nguyễn Thị Diệp (NTD)", "Nguyễn Văn Định (NVD)",
+  "Nguyễn Ngọc Phụng (NNP)", "Lê Thị Quyên (LTQ) - Team Đào Tạo", "Đặng Ngọc Long (ĐNL)",
+  "Đỗ Minh Quyền (ĐMQ)", "Vũ Văn Ninh (VVN)", "Nguyễn Trung Hưởng (NTH)", "Nguyễn Xuân Sơn (XS)",
+  "Đỗ Thị Thảo (DT)", "Mai Hồng Khanh (MHK) - Vẽ", "Hoàng Thị Thùy Linh ( HTL ) - Vẽ",
+  "Hoàng Yến Linh (YL) - Vẽ", "Nguyễn Hoàng Phương - Vẽ - Video 2D", "Nguyễn Thục Mỹ (NTM) - Vẽ",
+  "Phạm Minh Hiếu (PMH) - Vẽ", "Nguyễn Thị Nga (NTN)", "Bùi Thu Phương (BTP) - Lịch",
+  "Nguyễn Ngọc Ánh (NNA) - Lịch", "Nguyễn Văn Lịch (NVL) - Lịch", "Trịnh Thu Hà (TTH) - Lịch",
+  "Nguyễn Thị Thúy (NTT2) - Lịch", "Trần Ngọc Trà My (TM) - 2D - Online - Team Gỗ",
+  "Trần Kim Đức(TKĐ) - 2D - Online", "Phạm Thị Hồng Nhung (PTHN) - 2D - Online",
+  "Vũ Thu Uyên (VTU)", "Nguyễn Ngọc Duy (NND)", "Đặng Thị Minh Thanh - (ĐTMT) Idea",
+  "Vũ Minh Đức (VMĐ)", "Trần Quang Huy (TQH) - Vẽ", "Hồ Thu Hà (HTH) - Vẽ"
+];
+
+const DEFAULT_LIST_3D = [
+  "Chu Thị Giang (CG) - 3D", "Nguyễn Ngọc Anh (NA) - 3D - Team Đào Tạo",
+  "Phạm Thị Thùy Trang (PTT) - 3D", "Phạm Thị Hoài (PH) - 3D", "Lê Thanh Tùng ( LT ) - 3D",
+  "Nguyễn Thúy Quỳnh (NQ) - 3D", "Nguyễn Thị Toàn (NTT) - 3D - Team Đào Tạo",
+  "Chu Bá Chiến - 3D", "Trần Minh Hiếu (TMH) - 3D", "Trần Đình Thắng (TDT) - 3D - Team Đào Tạo",
+  "Nguyễn Hải Yến (NHY) - 3D", "Đinh Thương Huyền ( DTH) - 3D", "Nguyễn Hoàng Phi (NHP) - 3D",
+  "Nguyễn Xuân Hậu (XH) - 3D", "Nguyễn Phương Nam (NPN) - 3D", "Nguyễn Trường Sơn ( NTS ) - 3D",
+  "Nguyễn Nho Tùng (NNT) - 3D", "Đỗ Hoài Nam (DHN) - 3D", "Khổng Đức Anh (KDA) - 3D",
+  "Nguyễn Thị Thương (TTN) - 3D", "Vũ Hồng Thái (TV) - 3D", "Nguyễn Thị Khánh Ly (NTKL) - 3D",
+  "Trần Thị Ngọc Trâm (TTNT) - 3D", "Nguyễn Đức Công (NDC) - 3D", "Nguyễn Hữu Cường (NHC) - 3D",
+  "Phạm Văn Trường (PVT) - 3D", "Trần Ngọc Trung Hiếu (TNTH) - 3D", "Trần Đức Thắng (DT) - 3D",
+  "Đặng Hải Yến (DHY) - 3D", "Nguyễn Thị Yến (NTY) - 3D", "Nguyễn Văn Tú 02 (NVT2) - 3D",
+  "Phạm Thị Trang Anh (PTTA) - 3D", "Nguyễn Văn Tuấn ( VTTV) - 3D", "Nguyễn Thành Minh (NTM) - 3D",
+  "Lê Anh Tuấn (LAT) - 3D", "Nguyễn Thanh Hương (NTH) - 3D", "Dương Thị Giang (DTG)- 3D",
+  "Trần Thành Đạt (TTĐ) - 3D", "Vũ Công Toàn (VCT) - 3D", "Nguyễn Văn Duy (NVD) - 3D",
+  "Trần Thị Giang (TTG) - 3D", "Nguyễn Trọng Dũng (NTD) - 3D"
+];
+
+// Biến lưu danh sách đang sử dụng (Load từ Store hoặc dùng Default)
+let activeList2D = [...DEFAULT_LIST_2D];
+let activeList3D = [...DEFAULT_LIST_3D];
+let currentKpiData = [];
+
+// Hàm khởi tạo: Tải danh sách tùy chỉnh từ Store (nếu có)
+async function loadKpiLists() {
+  try {
+    if (window.api && window.api.getKpiLists) {
+        const data = await window.api.getKpiLists();
+        if (data.list2d && Array.isArray(data.list2d) && data.list2d.length > 0) {
+          activeList2D = data.list2d;
+        }
+        if (data.list3d && Array.isArray(data.list3d) && data.list3d.length > 0) {
+          activeList3D = data.list3d;
+        }
+        console.log("Đã tải danh sách KPI tùy chỉnh.");
+    }
+  } catch (e) {
+    console.error("Không thể tải danh sách KPI (có thể do chưa setup main.js), dùng mặc định.", e);
+  }
+}
+// Gọi ngay khi chạy
+loadKpiLists();
+
+// 2. Các hàm xử lý
+const kpiModal = $('#kpiModal');
+
+// Hàm Parse dữ liệu text sang Map { name_clean: kpi_value }
+// (Phiên bản nâng cấp: Nhận diện header thông minh)
+function parseKpiInput(text) {
+  const map = new Map();
+  if (!text) return map;
+
+  const lines = text.split('\n');
+  let nameIdx = -1;
+  let kpiIdx = -1;
+  let startRow = -1;
+
+  // Cấu hình từ khóa để dò cột
+  const kpiHeaders = ['kpi đã làm', 'kpi da lam', 'kpi', 'kpi thực đạt']; 
+  const nameHeaders = ['designer', 'tên', 'ten', 'họ và tên', 'staff name'];
+
+  // BƯỚC 1: Dò tìm dòng tiêu đề (quét 20 dòng đầu)
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    const row = lines[i].toLowerCase().split(/\t/).map(c => c.trim());
+    
+    // Tìm vị trí cột KPI (ưu tiên chính xác)
+    let foundK = -1;
+    for (const kHeader of kpiHeaders) {
+        const idx = row.indexOf(kHeader);
+        if (idx !== -1) { foundK = idx; break; }
+    }
+
+    // Tìm vị trí cột Tên
+    let foundN = -1;
+    for (const nHeader of nameHeaders) {
+        const idx = row.indexOf(nHeader);
+        if (idx !== -1) { foundN = idx; break; }
+    }
+
+    if (foundK !== -1 && foundN !== -1) {
+        kpiIdx = foundK;
+        nameIdx = foundN;
+        startRow = i + 1;
+        break;
+    }
+  }
+
+  // BƯỚC 2: Nếu không tìm thấy header, thử fallback sang logic cũ (nếu cần) hoặc trả về rỗng
+  if (startRow === -1) return map; 
+
+  // BƯỚC 3: Quét dữ liệu
+  for (let i = startRow; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const parts = line.split(/\t/);
+    if (parts.length <= Math.max(nameIdx, kpiIdx)) continue;
+
+    const rawName = parts[nameIdx].trim();
+    let rawVal = parts[kpiIdx].trim();
+
+    // Xử lý số liệu (bỏ dấu phẩy)
+    rawVal = rawVal.replace(/,/g, '');
+    const val = parseFloat(rawVal) || 0;
+
+    const cleanKey = cleanNameForKpi(rawName);
+    if (cleanKey) {
+        const current = map.get(cleanKey) || 0;
+        map.set(cleanKey, current + val);
+    }
+  }
+  return map;
+}
+
+// Hàm làm sạch tên để khớp lệnh
+function cleanNameForKpi(name) {
+  if (!name) return '';
+  return name.toLowerCase()
+    .replace(/\(.*?\)/g, '')    // Bỏ (DK), (NH)...
+    .split('-')[0]              // Bỏ tất cả phần sau dấu gạch ngang
+    .replace(/2d|3d/g, '')      // Bỏ chữ 2d, 3d
+    .trim();
+}
+
+// Hàm logic chính: Tính và Render
+function calculateAndRenderKpi() {
+  const meearMap = parseKpiInput($('#txtKpiMeear').value);
+  const blurMap = parseKpiInput($('#txtKpiBlur').value);
+  const printMap = parseKpiInput($('#txtKpiPrint').value);
+
+  const tbody = $('#tbodyKpi');
+  tbody.innerHTML = '';
+  currentKpiData = [];
+
+  // Helper render từng dòng
+  const renderRow = (originalName, index) => {
+    const cleanKey = cleanNameForKpi(originalName);
+    
+    const vMeear = meearMap.get(cleanKey) || 0;
+    const vBlur = blurMap.get(cleanKey) || 0;
+    const vPrint = printMap.get(cleanKey) || 0;
+    const total = vMeear + vBlur + vPrint;
+
+    // Lưu data (Thứ tự trong object JS không quan trọng)
+    currentKpiData.push({ name: originalName, meear: vMeear, blur: vBlur, print: vPrint, total });
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${index}</td>
+      <td style="font-weight:500">${originalName}</td>
+      <td class="col-num" style="color:#16a34a">${vPrint > 0 ? vPrint : '-'}</td>
+      <td class="col-num" style="color:#2563eb">${vBlur > 0 ? vBlur : '-'}</td>
+      <td class="col-num" style="color:#ea580c">${vMeear > 0 ? vMeear : '-'}</td>
+      <td class="col-num" style="font-weight:bold">${total > 0 ? total : '-'}</td>
+    `;
+    return tr;
+  };
+
+  // Render theo activeList2D
+  const trHead2D = document.createElement('tr');
+  trHead2D.className = 'row-group-header';
+  trHead2D.innerHTML = `<td colspan="6">TEAM 2D (${activeList2D.length})</td>`;
+  tbody.appendChild(trHead2D);
+  activeList2D.forEach((name, i) => tbody.appendChild(renderRow(name, i + 1)));
+
+  // Render theo activeList3D
+  const trHead3D = document.createElement('tr');
+  trHead3D.className = 'row-group-header';
+  trHead3D.innerHTML = `<td colspan="6">TEAM 3D (${activeList3D.length})</td>`;
+  tbody.appendChild(trHead3D);
+  activeList3D.forEach((name, i) => tbody.appendChild(renderRow(name, i + 1)));
+
+  $('#kpiResultContainer').classList.remove('hidden');
+}
+
+// Hàm Copy (Thứ tự: Print -> Blur -> Meear)
+async function copyKpiToClipboard() {
+  if (!currentKpiData.length) return;
+  
+  // Format: Tên [TAB] Print [TAB] Blur [TAB] Meear
+  const text = currentKpiData.map(item => {
+    return `${item.name}\t${item.print}\t${item.blur}\t${item.meear}`;
+  }).join('\n');
+
+  try {
+    await window.api.copyText(text);
+    showToast('✅ Đã copy! (Thứ tự: Print ➔ Blur ➔ Meear)');
+  } catch (err) {
+    showToast('❌ Lỗi copy.');
+  }
+}
+
+// --- XỬ LÝ SỰ KIỆN ---
+
+// Mở modal KPI
+$('#btnOpenKpiModal')?.addEventListener('click', () => {
+  kpiModal.classList.remove('hidden');
+  kpiModal.setAttribute('aria-hidden', 'false');
+});
+
+// Đóng modal KPI
+const closeKpiModal = () => {
+  kpiModal.classList.add('hidden');
+  kpiModal.setAttribute('aria-hidden', 'true');
+};
+$('#kpiModalX')?.addEventListener('click', closeKpiModal);
+$('#kpiModalBackdrop')?.addEventListener('click', closeKpiModal);
+$('#btnKpiCancel')?.addEventListener('click', closeKpiModal);
+
+// Nút Tính toán & Copy
+$('#btnAnalyzeKpi')?.addEventListener('click', calculateAndRenderKpi);
+$('#btnCopyKpi')?.addEventListener('click', copyKpiToClipboard);
+
+
+// --- XỬ LÝ CẤU HÌNH DANH SÁCH (Config Modal) ---
+const kpiConfigModal = $('#kpiConfigModal');
+
+// Mở modal config
+$('#btnConfigKpiList')?.addEventListener('click', () => {
+  $('#txtConfig2D').value = activeList2D.join('\n');
+  $('#txtConfig3D').value = activeList3D.join('\n');
+  kpiConfigModal.classList.remove('hidden');
+});
+
+// Đóng modal config
+const closeConfig = () => kpiConfigModal.classList.add('hidden');
+$('#btnCloseKpiConfig')?.addEventListener('click', closeConfig);
+$('#btnCancelKpiConfig')?.addEventListener('click', closeConfig);
+
+// Lưu danh sách mới
+$('#btnSaveKpiConfig')?.addEventListener('click', async () => {
+  const newList2D = $('#txtConfig2D').value.split('\n').map(s => s.trim()).filter(s => s);
+  const newList3D = $('#txtConfig3D').value.split('\n').map(s => s.trim()).filter(s => s);
+
+  if (newList2D.length === 0 && newList3D.length === 0) {
+    showToast('⚠️ Danh sách trống!');
+    return;
+  }
+
+  activeList2D = newList2D;
+  activeList3D = newList3D;
+
+  if (window.api && window.api.saveKpiLists) {
+      await window.api.saveKpiLists({ list2d: activeList2D, list3d: activeList3D });
+  }
+  
+  showToast('✅ Đã lưu danh sách mới!');
+  closeConfig();
+  
+  if (!$('#kpiResultContainer').classList.contains('hidden')) {
+      calculateAndRenderKpi();
+  }
+});
+
+// Reset về mặc định
+$('#btnResetDefaultList')?.addEventListener('click', () => {
+  if(confirm('Khôi phục về danh sách gốc ban đầu?')) {
+      $('#txtConfig2D').value = DEFAULT_LIST_2D.join('\n');
+      $('#txtConfig3D').value = DEFAULT_LIST_3D.join('\n');
+  }
+});
+
+// 3. Gắn sự kiện
+$('#btnOpenKpiModal')?.addEventListener('click', () => {
+  kpiModal.classList.remove('hidden');
+  kpiModal.setAttribute('aria-hidden', 'false');
+});
+
+$('#kpiModalX')?.addEventListener('click', () => {
+  kpiModal.classList.add('hidden');
+  kpiModal.setAttribute('aria-hidden', 'true');
+});
+
+$('#kpiModalBackdrop')?.addEventListener('click', () => {
+  kpiModal.classList.add('hidden');
+  kpiModal.setAttribute('aria-hidden', 'true');
+});
+
+$('#btnKpiCancel')?.addEventListener('click', () => {
+  kpiModal.classList.add('hidden');
+});
+
+$('#btnAnalyzeKpi')?.addEventListener('click', calculateAndRenderKpi);
+$('#btnCopyKpi')?.addEventListener('click', copyKpiToClipboard);
+
 // 6. Gắn sự kiện
 $('#btnOpenPullCheck')?.addEventListener('click', openPullCheckModal);
 $('#pullCheckX')?.addEventListener('click', closePullCheckModal);
-$('#pullCheckBackdrop')?.addEventListener('click', closePullCheckModal);
 $('#pullCheckCancel')?.addEventListener('click', closePullCheckModal);
 $('#btnAnalyzePull')?.addEventListener('click', analyzePullData);
 
