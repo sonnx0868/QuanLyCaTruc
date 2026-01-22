@@ -118,7 +118,39 @@ window.api = {
         return { ok: false };
     }
   },
+    // --- [MỚI] TÍNH NĂNG KPI & CHECK PULL ---
+  
+  // 1. Lấy danh sách nhân viên KPI đã lưu (để không phải nhập lại mỗi lần)
+  getKpiLists: async () => {
+    const data = LS.get('kpi_lists', { team2d: "", team3d: "" });
+    return data; 
+  },
+  
+  // 2. Lưu danh sách cấu hình KPI vào bộ nhớ điện thoại
+  saveKpiLists: async (data) => {
+    LS.set('kpi_lists', data);
+    return { ok: true };
+  },
 
+  // 3. Xuất file CSV (Check Pull / KPI / Báo cáo)
+  // Trên điện thoại sẽ tự động tải file về thư mục Tệp
+  exportCsv: async ({ defaultName, content }) => {
+    try {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${defaultName}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return { ok: true };
+    } catch (e) {
+      console.error("Lỗi xuất file:", e);
+      return { ok: false };
+    }
+  },
+  
   // Dummy functions để không lỗi
   setMiniMode: async () => { console.log('Mini mode not supported on mobile'); return { ok: true }; }
 };
