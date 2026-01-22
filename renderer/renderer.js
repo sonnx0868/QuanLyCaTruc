@@ -3979,7 +3979,7 @@ function analyzePullData() {
   renderPullResult('HC', missingHC);
   renderPullResult('Eve', missingEve);
 
-  $('#pullCheckResult').style.display = 'block';
+  $('#pullCheckResult').style.display = 'flex';
 }
 
 // 2. Hàm Render Kết Quả Pull (Đã Fix lỗi tìm kiếm Tiếng Việt)
