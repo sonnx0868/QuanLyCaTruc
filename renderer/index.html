@@ -2,30 +2,20 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Roster Manager Mobile</title>
+  <title>Roster Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev">
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="app-splash" style="
-      position: fixed; inset: 0; background: #ffffff; z-index: 99999; 
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      transition: opacity 0.5s ease;
-  ">
-      <div style="font-size: 50px; margin-bottom: 20px;">🛡️</div>
-      <div class="spinner" style="
-          width: 40px; height: 40px; border: 4px solid #f3f3f3; 
-          border-top: 4px solid #4f46e5; border-radius: 50%; 
-          animation: spin 1s linear infinite;"></div>
-      <div style="margin-top: 15px; color: #6b7280; font-size: 14px; font-weight: 500;">
-          Đang tải dữ liệu...
-      </div>
-  </div>
-  <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+
+  <div id="miniModeBg"></div>
 
   <header class="appbar">
     <div class="appbar-left">
@@ -39,12 +29,13 @@
     <div class="appbar-center">
        <div class="smart-search">
         <span class="search-icon">🔍</span>
-        <input id="searchInput" class="search-input" placeholder="Tìm tên..."/>
+        <input id="searchInput" class="search-input" placeholder="Tìm tên, lọc off, chiều tối..."/>
       </div>
       <div id="activeFilters" class="active-filters"></div>
     </div>
 
     <div class="date-box">
+      <label>Ngày làm việc</label>
       <input id="datePicker" type="date" />
     </div>
   </header>
@@ -68,10 +59,10 @@
       <div class="card actions-card">
         <div class="card-title">Thao tác nhanh</div>
         <div class="quick-actions-grid">
-          <button id="btnAllOn"   class="btn btn-outline success">✅ All ONL</button>
-          <button id="btnAllOff"  class="btn btn-outline danger">❌ All OFF</button>
-          <button id="btnClearEve" class="btn btn-outline info">🌙 Xóa CT</button>
-          <button id="btnClearAllOT" class="btn btn-outline warn">🔥 Xóa OT</button>
+          <button id="btnAllOn"   class="btn btn-outline success">✅ Bỏ OFF tất cả</button>
+          <button id="btnAllOff"  class="btn btn-outline danger">❌ OFF tất cả</button>
+          <button id="btnClearEve" class="btn btn-outline info">🌙 Bỏ Chiều tối</button>
+          <button id="btnClearAllOT" class="btn btn-outline warn">🔥 Xóa OT tất cả</button>
         </div>
       </div>
     </aside>
@@ -82,20 +73,20 @@
           <div class="stat-pill"><span class="lbl">Tổng</span> <span id="countTotal" class="val">0</span></div>
           <div class="stat-pill success"><span class="lbl">HC</span> <span id="countOnl" class="val">0</span></div>
           <div class="stat-pill danger"><span class="lbl">OFF</span> <span id="countOff" class="val">0</span></div>
-          <div class="stat-pill info"><span class="lbl">CT</span> <span id="countEvening" class="val">0</span></div>
+          <div class="stat-pill info"><span class="lbl">Chiều tối</span> <span id="countEvening" class="val">0</span></div>
         </div>
 
         <div class="main-actions">
-            <div class="btn-group-pull">
-              <button id="btnOpenPullCheck" class="btn btn-outline warn">⚡ Pull</button>
-              <button id="btnOpenKpiModal" class="btn btn-outline success">📊 KPI</button>
+           
+           <div class="btn-group-pull" style="border-right:1px solid #ddd; padding-right:10px; margin-right:5px;">
+              <button id="btnOpenPullCheck" class="btn btn-outline warn" title="Dán dữ liệu để kiểm tra">⚡ Check Pull</button>
+              <button id="btnOpenKpiModal" class="btn btn-outline success" title="Tính KPI tháng">📊 Tính KPI</button>
            </div>
-
-           <button id="btnOpenStatsModal" class="btn btn-ghost">📈</button>
-           <button id="btnOpenExportModal" class="btn btn-ghost">🚀</button>
-           <button id="btnOpenPasteModal" class="btn btn-ghost">📋</button>
-           <button id="btnWeekendDuty" class="btn btn-gradient">🎯 Quay</button>
-           <button id="btnOpenEmpModal" class="btn btn-primary">➕</button>
+           <button id="btnOpenStatsModal" class="btn btn-ghost">📈 Thống kê</button>
+           <button id="btnOpenExportModal" class="btn btn-ghost">🚀 Xuất báo cáo</button>
+           <button id="btnOpenPasteModal" class="btn btn-ghost" title="Dán danh sách">📋 Dán Excel</button>
+           <button id="btnWeekendDuty" class="btn btn-gradient">🎯 Quay số</button>
+           <button id="btnOpenEmpModal" class="btn btn-primary">➕ Thêm NV</button>
       </div>
       </div>
 
@@ -103,13 +94,13 @@
         <table>
           <thead>
             <tr>
-              <th style="width: 40px" id="th-stt" class="sort-header active">#</th>
-              <th class="col-name sort-header" id="th-name">Nhân viên</th>
-              <th style="width:80px" id="th-team" class="sort-header">Đội</th>
-              <th style="width:100px">Trạng thái</th>
-              <th style="width:50px">CT</th>
-              <th style="width:60px">OT</th>
-              <th style="width:80px">Thao tác</th>
+              <th style="width: 50px" id="th-stt" class="sort-header active" title="Sắp xếp ưu tiên">#</th>
+              <th class="col-name sort-header" id="th-name" title="Sắp xếp tên (A-Z)">Nhân viên</th>
+              <th style="width:140px" id="th-team" class="sort-header" title="Sắp xếp đội">Đội</th>
+              <th style="width:130px">Trạng thái</th>
+              <th style="width:100px">Chiều tối</th>
+              <th style="width:100px">OT</th>
+              <th style="width:100px">Thao tác</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -117,25 +108,34 @@
       </div> 
       <div id="emptyState" class="empty-state hidden">
         <div class="empty-icon">📂</div>
-        <div>Chưa có dữ liệu.</div>
+        <div>Chưa có dữ liệu nhân viên nào.</div>
       </div>
     </main>
   </div>
 
   <footer class="statusbar">
-    <span>Mobile v2.2</span>
+    <span>Trực Tối Cuối Tuần v3.0</span>
+    <span>•</span>
+    <span>Printerval.com</span>
   </footer>
 
-  <div id="pasteModal" class="modal hidden">
+  <div id="pasteModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="pasteModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="title">📋 Dán OT Excel</div>
+        <div class="title">📋 Dán nhanh OT từ Excel</div>
         <button class="icon-btn-close" id="pasteModalX">✕</button>
       </div>
       <div class="modal-body">
-        <textarea id="pasteTextarea" class="paste-textarea" rows="10" placeholder="Paste dữ liệu vào đây..."></textarea>
-      </div>
+      <p class="hint-text">
+        💡 <b>Dán thông minh:</b> Tự động nhận diện Excel hoặc các định dạng Text (BT, OT, OFF, Chiều tối...).<br>
+        Chỉ cần copy và dán vào đây.
+      </p>
+      <textarea id="pasteTextarea" class="paste-textarea" rows="10" placeholder="Ví dụ:
+    - Tăng Duy Khánh (DK): BT + 20-0h
+    - Ngô Sĩ Hùng (NH): 18h-22h
+    - Hoàng Yến Linh OFF"></textarea>
+    </div>
       <div class="modal-footer">
         <button id="pasteModalCancel" class="btn">Hủy</button>
         <button id="pasteModalApply" class="btn btn-primary">Áp dụng</button>
@@ -143,38 +143,40 @@
     </div>
   </div>
 
-  <div id="teamDialog" class="modal hidden">
+  <div id="teamDialog" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="teamDialogClose"></div>
     <div class="modal-card large">
       <div class="modal-header">
-        <div class="title">Cài đặt Đội</div>
+        <div class="title">Cài đặt Đội nhóm</div>
         <button class="icon-btn-close" id="teamDialogX">✕</button>
       </div>
       <div class="modal-body">
         <div class="team-layout">
           <div class="col left-col">
-            <input id="teamSearch" class="input-std mb-2" placeholder="Tìm..." />
-            <div id="allEmployees" class="listbox"></div>
+            <div class="subttl">Nhân viên</div>
+            <input id="teamSearch" class="input-std mb-2" placeholder="Tìm nhanh..." />
+            <div id="allEmployees" class="listbox draggable-source"></div>
           </div>
           <div class="col right-col">
              <div class="add-team-form mb-3">
-                <input id="newTeamInput" class="input-std" placeholder="Đội mới..." />
+                <input id="newTeamInput" class="input-std" placeholder="Tên đội mới..." />
                 <input type="color" id="newTeamColor" class="color-picker-input" value="#888888">
-                <button id="btnAddTeam" class="btn btn-primary">+</button>
+                <button id="btnAddTeam" class="btn btn-primary">Thêm</button>
              </div>
+             
              <div class="team-tabs-wrapper">
                 <button id="teamTabsPrev" class="tab-nav-btn">‹</button>
                 <div id="teamTabsContainer" class="team-tabs-container"></div>
                 <button id="teamTabsNext" class="tab-nav-btn">›</button>
              </div>
-             <div id="teamTabContent" class="team-tab-content"></div>
+             <div id="teamTabContent" class="team-tab-content drop-target"></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="empModal" class="modal hidden">
+  <div id="empModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="empModalBackdrop"></div>
     <div class="modal-card small">
       <div class="modal-header">
@@ -183,12 +185,12 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-           <label>Tên</label>
-           <input id="empModalName" class="input-std" />
+           <label>Họ và Tên</label>
+           <input id="empModalName" class="input-std" placeholder="Nhập tên..." />
         </div>
         <div class="form-group mt-3">
-           <label>Đội</label>
-           <input id="empModalTeam" class="input-std" />
+           <label>Đội (Team)</label>
+           <input id="empModalTeam" class="input-std" placeholder="VD: Vẽ, 2D, Lead..." />
         </div>
       </div>
       <div class="modal-footer">
@@ -197,89 +199,93 @@
       </div>
     </div>
   </div>
-<div id="kpiModal" class="modal hidden">
+
+  <div id="kpiModal" class="modal hidden" aria-hidden="true">
   <div class="modal-backdrop" id="kpiModalBackdrop"></div>
-  <div class="modal-card large" style="width: 100%; height: 90vh;">
+  <div class="modal-card large" style="width: 1000px; max-width: 98vw; height: 90vh;">
     <div class="modal-header">
-      <div style="display:flex; align-items:center; gap: 10px;">
-        <div class="title">📊 Tính KPI</div>
-        <button id="btnConfigKpiList" class="btn btn-sm btn-outline" style="font-size:12px;">⚙️ DS NV</button>
-      </div>
-      <button class="icon-btn-close" id="kpiModalX">✕</button>
-    </div>
+  <div style="display:flex; align-items:center; gap: 10px;">
+    <div class="title">📊 Tính KPI Hàng Tháng</div>
+    <button id="btnConfigKpiList" class="btn btn-sm btn-outline" style="font-size:12px;">⚙️ Sửa Danh Sách NV</button>
+  </div>
+  <button class="icon-btn-close" id="kpiModalX">✕</button>
+</div>
     
     <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px; height: 100%;">
-      <div class="kpi-input-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px;">
+      
+      <div class="kpi-input-grid">
         <div class="input-col">
-          <label class="kpi-label meear" style="color:#ea580c;font-weight:bold;font-size:11px;">Meear</label>
-          <textarea id="txtKpiMeear" class="kpi-textarea" style="height:80px" placeholder="Dán Meear..."></textarea>
+          <label class="kpi-label meear">Meear</label>
+          <textarea id="txtKpiMeear" class="kpi-textarea" placeholder="Dán bảng Meear..."></textarea>
         </div>
         <div class="input-col">
-          <label class="kpi-label blur" style="color:#2563eb;font-weight:bold;font-size:11px;">Blur</label>
-          <textarea id="txtKpiBlur" class="kpi-textarea" style="height:80px" placeholder="Dán Blur..."></textarea>
+          <label class="kpi-label blur">Blur</label>
+          <textarea id="txtKpiBlur" class="kpi-textarea" placeholder="Dán bảng Blur..."></textarea>
         </div>
         <div class="input-col">
-          <label class="kpi-label print" style="color:#16a34a;font-weight:bold;font-size:11px;">Print</label>
-          <textarea id="txtKpiPrint" class="kpi-textarea" style="height:80px" placeholder="Dán Print..."></textarea>
+          <label class="kpi-label print">Printerval</label>
+          <textarea id="txtKpiPrint" class="kpi-textarea" placeholder="Dán bảng Printerval..."></textarea>
         </div>
       </div>
 
-      <div id="kpiResultContainer" class="kpi-result-box hidden" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
-        <div class="result-toolbar" style="padding:5px; background:#f9fafb; display:flex; justify-content:space-between;">
+      <div id="kpiResultContainer" class="kpi-result-box hidden">
+        <div class="result-toolbar">
            <strong>Kết quả:</strong>
-           <button id="btnCopyKpi" class="btn btn-primary btn-sm">📋 Copy</button>
+           <button id="btnCopyKpi" class="btn btn-primary btn-sm">📋 Copy vào Excel</button>
         </div>
-        <div class="table-scroll-wrapper" style="overflow-y:auto; flex:1;">
-            <table class="kpi-table" style="width:100%;">
+        <div class="table-scroll-wrapper">
+            <table class="kpi-table">
               <thead>
-                <tr style="background:#f3f4f6;">
-                  <th style="text-align:left;">NV</th>
-                  <th class="col-num" style="text-align:right;">Print</th>
-                  <th class="col-num" style="text-align:right;">Blur</th>
-                  <th class="col-num" style="text-align:right;">Meear</th>
-                  <th class="col-num" style="text-align:right;">Tổng</th>
+                <tr>
+                  <th style="width: 50px;">#</th>
+                  <th>Nhân viên</th>
+                  <th class="col-num">Print</th>
+                  <th class="col-num">Blur</th>
+                  <th class="col-num">Meear</th>
+                  <th class="col-num">Tổng</th>
                 </tr>
               </thead>
               <tbody id="tbodyKpi"></tbody>
             </table>
         </div>
       </div>
+
     </div>
     
     <div class="modal-footer">
       <button id="btnKpiCancel" class="btn">Đóng</button>
-      <button id="btnAnalyzeKpi" class="btn btn-primary large">🚀 Tính Ngay</button>
+      <button id="btnAnalyzeKpi" class="btn btn-primary large">🚀 Tính Toán Ngay</button>
     </div>
   </div>
 </div>
 
 <div id="kpiConfigModal" class="modal hidden" style="z-index: 2000;">
   <div class="modal-backdrop"></div>
-  <div class="modal-card" style="width: 600px; height: 80vh;">
+  <div class="modal-card" style="width: 800px; height: 80vh;">
     <div class="modal-header">
-      <div class="title">⚙️ Cấu hình DS NV</div>
+      <div class="title">⚙️ Cập nhật Danh sách Nhân viên KPI</div>
       <button class="icon-btn-close" id="btnCloseKpiConfig">✕</button>
     </div>
-    <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px; height: 100%;">
-      <div style="display: flex; flex-direction: column; flex:1;">
-        <label style="font-weight:bold; margin-bottom:5px;">TEAM 2D</label>
-        <textarea id="txtConfig2D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Mỗi tên 1 dòng..."></textarea>
+    <div class="modal-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; height: 100%;">
+      <div style="display: flex; flex-direction: column;">
+        <label style="font-weight:bold; margin-bottom:5px;">Danh sách TEAM 2D</label>
+        <textarea id="txtConfig2D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Nhập tên nhân viên, mỗi người 1 dòng..."></textarea>
       </div>
-      <div style="display: flex; flex-direction: column; flex:1;">
-        <label style="font-weight:bold; margin-bottom:5px;">TEAM 3D</label>
-        <textarea id="txtConfig3D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Mỗi tên 1 dòng..."></textarea>
+      <div style="display: flex; flex-direction: column;">
+        <label style="font-weight:bold; margin-bottom:5px;">Danh sách TEAM 3D</label>
+        <textarea id="txtConfig3D" style="flex:1; resize:none; padding:10px; border:1px solid #ddd; border-radius:8px;" placeholder="Nhập tên nhân viên, mỗi người 1 dòng..."></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button id="btnResetDefaultList" class="btn btn-outline warn">Mặc định</button>
+      <button id="btnResetDefaultList" class="btn btn-outline warn">Khôi phục mặc định</button>
       <div style="flex:1"></div>
       <button id="btnCancelKpiConfig" class="btn">Hủy</button>
-      <button id="btnSaveKpiConfig" class="btn btn-primary">💾 Lưu</button>
+      <button id="btnSaveKpiConfig" class="btn btn-primary">💾 Lưu Danh Sách Mới</button>
     </div>
   </div>
 </div>
 
-  <div id="exportModal" class="modal hidden">
+  <div id="exportModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="exportModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
@@ -288,28 +294,35 @@
       </div>
       <div class="modal-body">
         <div class="option-group">
-           <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết</label>
+           <div class="opt-label">Loại báo cáo</div>
+           <label class="radio-label"><input type="radio" name="reportType" value="detailed" checked> Chi tiết theo đội</label>
         </div>
+        
         <div id="detailedReportOptions" class="mt-4">
+         <div class="opt-label">Nội dung</div>
+         <div class="radio-stack">
+            <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> ☀️ HC + 🌙 Chiều tối</label>
+            <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> ❌ OFF + 🌙 Chiều tối</label>
+            <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> 🌙 Chiều tối + 💲 OT</label>
+            
+            <label class="radio-label"><input type="radio" name="detailedMode" value="sun_hc_ot"> 📅 Chủ Nhật (Làm bù + OT)</label>
+            </div>
+         
+         <div class="opt-label mt-4">Định dạng</div>
            <div class="radio-stack">
-              <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> HC + CT</label>
-              <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> OFF + CT</label>
-              <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> CT + OT</label>
-           </div>
-           <div class="opt-label mt-4">Định dạng</div>
-           <div class="radio-stack">
-              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> Copy Clipboard</label>
+              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> 📋 Copy vào Clipboard</label>
+              <label class="radio-label"><input type="radio" name="exportFormat" value="txt"> 📄 Lưu file .txt</label>
            </div>
         </div>
       </div>
       <div class="modal-footer">
         <button id="btnCancelExport" class="btn">Đóng</button>
-        <button id="btnConfirmExport" class="btn btn-primary">Xuất</button>
+        <button id="btnConfirmExport" class="btn btn-primary">Xác nhận</button>
       </div>
     </div>
   </div>
 
-  <div id="weekendModal" class="modal hidden">
+  <div id="weekendModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="weekendBackdrop"></div>
     <div class="modal-card medium" id="weekendCard">
       <div class="modal-header">
@@ -317,47 +330,52 @@
            <div class="title">🎯 Quay Số Trực</div>
         </div>
         <div class="header-right">
+           <button class="icon-btn" id="btnPinWeekend" title="Ghim ra màn hình (Mini Mode)">📌</button>
            <button class="icon-btn-close" id="weekendClose">✕</button>
         </div>
       </div>
       <div class="modal-body">
-        <div class="weekend-info">
-            <div class="stats-row-mini">
-              <div id="weekendLog">Last: —</div>
-              <div id="weekendCount" class="badge-count">0</div>
-            </div>
-        </div>
-        <div id="weekendFilterContainer" class="weekend-filters-row"></div>
-        <div id="weekendList" class="spin-list"></div>
-        <div id="weekendEmpty" class="empty-spin hidden">Trống.</div>
+  <div class="weekend-info">
+      <p>Danh sách lọc tự động theo giờ hiện tại.</p>
+      <div class="stats-row-mini">
+        <div id="weekendLog">Lần cuối: —</div>
+        <div id="weekendCount" class="badge-count">Còn: 0</div>
       </div>
+  </div>
+
+  <div id="weekendFilterContainer" class="weekend-filters-row"></div>
+  <div id="weekendList" class="spin-list"></div>
+  <div id="weekendEmpty" class="empty-spin hidden">Danh sách trống.</div>
+</div>
       <div class="modal-footer flex-center">
         <button id="weekendResetBtn" class="btn btn-outline">↺ Reset</button>
-        <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY</button>
+        <button id="weekendSpinBtn" class="btn btn-gradient large">🎰 QUAY NGAY</button>
       </div>
     </div>
   </div>
 
-  <div id="otModal" class="modal hidden">
+  <div id="otModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="otModalBackdrop"></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="title" id="otPopoverTitle">OT</div>
+        <div class="title" id="otPopoverTitle">Quản lý OT</div>
         <button class="icon-btn-close" id="btnCancelOt">✕</button>
       </div>
       <div class="modal-body">
         <div id="otShiftsList" class="ot-list"></div>
-        <button id="btnShowOtForm" class="btn btn-dashed w-100 mt-2">➕ Thêm OT</button>
+        <button id="btnShowOtForm" class="btn btn-dashed w-100 mt-2">➕ Thêm ca OT</button>
+        
         <div id="otEditForm" class="ot-form hidden">
            <div class="subttl" id="otFormTitle">Ca mới</div>
            <select id="otPreset" class="input-std mb-2">
              <option value="custom">-- Tự nhập --</option>
-             <option value="17:00-21:00">17h - 21h</option>
-             <option value="18:00-22:00">18h - 22h</option>
+             <option value="17:00-21:00">17h - 21h (4h)</option>
+             <option value="18:00-22:00">18h - 22h (4h)</option>
+             <option value="19:00-23:00">19h - 23h (4h)</option>
            </select>
            <div id="otManualInputs" class="row-2col">
-              <input type="text" id="otStart" class="input-std" placeholder="17:30" />
-              <input type="text" id="otEnd" class="input-std" placeholder="21:30" />
+              <input type="text" id="otStart" class="input-std" placeholder="Bắt đầu (17:30)" />
+              <input type="text" id="otEnd" class="input-std" placeholder="Kết thúc (21:30)" />
            </div>
            <div class="btn-row mt-3 right-align">
               <button id="btnCancelEditOt" class="btn btn-sm">Hủy</button>
@@ -368,81 +386,83 @@
     </div>
   </div>
 
-<div id="pullCheckModal" class="modal hidden">
+<div id="pullCheckModal" class="modal hidden" aria-hidden="true">
   <div class="modal-backdrop" id="pullCheckBackdrop"></div>
-  <div class="modal-card large" style="width: 95vw; max-width: 1000px; height: 90vh; display: flex; flex-direction: column;"> 
-    
+  <div class="modal-card large" style="max-width: 900px;"> 
     <div class="modal-header">
-      <div class="title">⚡ Check Pull <span id="pullCheckDateDisplay"></span></div>
+      <div class="title">
+          ⚡ Check Pull ngày <span id="pullCheckDateDisplay" style="color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:4px;">--/--</span>
+      </div>
       <button class="icon-btn-close" id="pullCheckX">✕</button>
     </div>
-
-    <div class="modal-body" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 15px; gap: 15px;">
-      
-      <div style="display: flex; gap: 15px; height: 130px; flex-shrink: 0;">
-        <div style="flex: 1; display: flex; flex-direction: column;">
-          <label style="color:#ea580c; font-weight:600; font-size: 12px; margin-bottom: 4px;">MEEAR (Paste vào đây)</label>
-          <textarea id="pasteMeearArea" class="paste-textarea" style="flex: 1; height: 100%; resize: none;" placeholder="Dán bảng Meear..."></textarea>
+    
+    <div class="modal-body">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        
+        <div>
+          <label style="font-weight:600; color:#ea580c; display:block; margin-bottom:5px;">Dữ liệu MEEAR</label>
+          <textarea id="pasteMeearArea" class="paste-textarea" rows="10" placeholder="Dán bảng Meear vào đây..."></textarea>
         </div>
-        <div style="flex: 1; display: flex; flex-direction: column;">
-          <label style="color:#2563eb; font-weight:600; font-size: 12px; margin-bottom: 4px;">BLUR (Paste vào đây)</label>
-          <textarea id="pasteBlurArea" class="paste-textarea" style="flex: 1; height: 100%; resize: none;" placeholder="Dán bảng Blur..."></textarea>
+
+        <div>
+          <label style="font-weight:600; color:#2563eb; display:block; margin-bottom:5px;">Dữ liệu BLUR</label>
+          <textarea id="pasteBlurArea" class="paste-textarea" rows="10" placeholder="Dán bảng Blur vào đây..."></textarea>
         </div>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
-          <button id="btnAnalyzePull" class="btn btn-primary large" style="width: 200px;">🔍 Phân tích ngay</button>
-      </div>
-
-      <div id="pullCheckResult" style="display: none; flex: 1; gap: 15px; overflow: hidden;">
+     <div id="pullCheckResult" style="margin-top: 20px; display: none;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
           
-          <div class="result-box" style="flex: 1; background: #fff1f2; border: 1px solid #fecdd3; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px;">
-            <div style="padding: 8px; background: #fff0f2; border-bottom: 1px solid #fecdd3; display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="margin:0; color:#be123c; font-size: 14px;">Thiếu HC (<span id="countMissingHC">0</span>)</h4>
-                <div style="display:flex; gap:5px">
-                   <input id="searchMissingHC" class="mini-search" placeholder="Lọc..." style="width: 80px;" />
-                   <button id="btnCopyMissingHC" class="mini-btn-copy" title="Copy">📋</button>
-                </div>
+          <div class="result-box" style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; display: flex; flex-direction: column;">
+            <div class="result-header" style="padding: 10px 10px 5px 10px; border-bottom: 1px dashed #fecdd3;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                 <h4 style="margin:0; color:#be123c;">☀️ Thiếu HC (<span id="countMissingHC">0</span>)</h4>
+                 <div style="display:flex; gap:5px;">
+                   <button id="btnCopyMissingHC" class="mini-btn-copy" title="Copy danh sách tên">📋 Copy</button>
+                   <input type="text" id="searchMissingHC" class="mini-search" placeholder="🔍 Lọc tên...">
+                 </div>
+              </div>
+              <div id="tagsMissingHC" class="tags-row"></div>
             </div>
-            <div id="tagsMissingHC" class="tags-row" style="padding: 5px; border-bottom: 1px dashed #fecdd3; background: #fff; min-height: 30px;"></div>
-            <div class="missing-list-container" style="flex: 1; overflow-y: auto; background: white; border: none; border-radius: 0;">
-                <ul id="listMissingHC" style="padding: 0; margin: 0; list-style: none;"></ul>
-            </div>
+            <ul id="listMissingHC" class="missing-list-container" style="border:none; border-radius:0 0 8px 8px;"></ul>
           </div>
 
-          <div class="result-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px;">
-            <div style="padding: 8px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="margin:0; color:#1e40af; font-size: 14px;">Thiếu CT (<span id="countMissingEve">0</span>)</h4>
-                <div style="display:flex; gap:5px">
-                   <input id="searchMissingEve" class="mini-search" placeholder="Lọc..." style="width: 80px;" />
-                   <button id="btnCopyMissingEve" class="mini-btn-copy" title="Copy">📋</button>
-                </div>
+          <div class="result-box" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; display: flex; flex-direction: column;">
+            <div class="result-header" style="padding: 10px 10px 5px 10px; border-bottom: 1px dashed #bfdbfe;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                 <h4 style="margin:0; color:#1e40af;">🌙 Thiếu Tối (<span id="countMissingEve">0</span>)</h4>
+                 <div style="display:flex; gap:5px;">
+                   <button id="btnCopyMissingEve" class="mini-btn-copy" title="Copy danh sách tên">📋 Copy</button>
+                   <input type="text" id="searchMissingEve" class="mini-search" placeholder="🔍 Lọc tên...">
+                 </div>
+              </div>
+              <div id="tagsMissingEve" class="tags-row"></div>
             </div>
-            <div id="tagsMissingEve" class="tags-row" style="padding: 5px; border-bottom: 1px dashed #bfdbfe; background: #fff; min-height: 30px;"></div>
-            <div class="missing-list-container" style="flex: 1; overflow-y: auto; background: white; border: none; border-radius: 0;">
-                <ul id="listMissingEve" style="padding: 0; margin: 0; list-style: none;"></ul>
-            </div>
+            <ul id="listMissingEve" class="missing-list-container" style="border:none; border-radius:0 0 8px 8px;"></ul>
           </div>
 
+        </div>
       </div>
+
     </div>
     
     <div class="modal-footer">
       <button id="pullCheckCancel" class="btn">Đóng</button>
+      <button id="btnAnalyzePull" class="btn btn-primary" style="min-width: 120px;">🔍 Phân tích ngay</button>
     </div>
   </div>
 </div>
-
   
-  <div id="statsModal" class="modal hidden">
+  <div id="statsModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="statsModalBackdrop"></div>
     <div class="modal-card large">
        <div class="modal-header">
-          <div class="title">Thống kê</div>
+          <div class="title">Thống kê đơn hàng</div>
           <div class="header-actions">
              <div class="date-range-selector">
-                <button class="range-btn active" data-days="7">7d</button>
-                <button class="range-btn" data-days="30">30d</button>
+                <button class="range-btn active" data-days="7">7 ngày</button>
+                <button class="range-btn" data-days="15">15 ngày</button>
+                <button class="range-btn" data-days="30">30 ngày</button>
              </div>
              <button id="btnReloadStats" class="btn btn-sm">↻</button>
              <button class="icon-btn-close" id="statsModalClose">✕</button>
@@ -457,24 +477,25 @@
     </div>
   </div>
 
-  <div id="confirmModal" class="modal hidden">
+  <div id="confirmModal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="confirmModalBackdrop"></div>
     <div class="modal-card confirm-card">
       <div class="modal-header no-border">
          <div class="title" id="confirmTitle">Xác nhận</div>
       </div>
       <div class="modal-body pt-0">
-         <p id="confirmMessage">?</p>
+         <p id="confirmMessage">Bạn có chắc không?</p>
       </div>
       <div class="modal-footer no-border">
          <button id="btnConfirmNo" class="btn">Không</button>
-         <button id="btnConfirmYes" class="btn btn-danger">Có</button>
+         <button id="btnConfirmYes" class="btn btn-danger">Có, thực hiện</button>
       </div>
     </div>
   </div>
 
   <div id="loadingOverlay" class="hidden"><div class="spinner"></div></div>
   <div id="toast" class="toast hidden"></div>
+  <div id="jackpotToast" class="jackpot-toast hidden"></div>
   <div id="celebrateOverlay" class="hidden"></div>
   <canvas id="confettiCanvas"></canvas>
 
@@ -483,28 +504,14 @@
   <div class="modal-card winner-card">
     <div class="winner-content">
       <div class="winner-icon">🏆</div>
-      <div class="winner-label">WINNER</div>
-      <div id="winnerNameDisplay" class="winner-name">...</div>
-      <div id="winnerDetailDisplay" class="winner-detail">...</div>
-      <button id="btnCloseWinner" class="btn btn-gradient large mt-4">OK 🎉</button>
+      <div class="winner-label">NGƯỜI ĐƯỢC CHỌN</div>
+      <div id="winnerNameDisplay" class="winner-name">Nguyễn Văn A</div>
+      <div id="winnerDetailDisplay" class="winner-detail">Team Vẽ • Chiều tối</div>
+      <button id="btnCloseWinner" class="btn btn-gradient large mt-4">Tuyệt vời! 🎉</button>
     </div>
   </div>
 </div>
 
-  <script src="./ios-shim.js"></script>
   <script src="./renderer.js" defer></script>
-  <script>
-    window.addEventListener('load', () => {
-      // Đợi 1 giây cho ổn định rồi tắt loading
-      setTimeout(() => {
-        const splash = document.getElementById('app-splash');
-        if (splash) {
-          splash.style.opacity = '0'; // Làm mờ dần
-          setTimeout(() => splash.remove(), 500); // Xóa hẳn
-        }
-      }, 1000);
-    });
-  </script>
-
 </body>
 </html>
