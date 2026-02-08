@@ -3047,7 +3047,8 @@ exportModal.addEventListener('change', (e) => {
   }
 });
 
-// Dán đè vào tệp giainen/renderer/renderer.js
+// Tìm đoạn btnConfirmExport.addEventListener và thay thế bằng code này:
+
 btnConfirmExport.addEventListener('click', async () => {
   const selectedFormat = document.querySelector('input[name="exportFormat"]:checked')?.value || 'copy';
   const mode = document.querySelector('input[name="detailedMode"]:checked')?.value || 'onl_eve';
@@ -3057,10 +3058,7 @@ btnConfirmExport.addEventListener('click', async () => {
   const dayOfWeek = selectedDate.getDay(); 
   const isSunday = dayOfWeek === 0;
 
-  // Lấy giờ hiện tại (tính bằng phút) để lọc
-  const nowMins = getCurrentMinutesAdjusted();
-
-  // === Helpers ===
+  // Helpers
   const normSt = (st0) => {
     const st = { off: null, evening: false, ot: [], ...(st0 || {}) };
     if (typeof st.off === 'boolean') st.off = st.off ? 'allday' : null;
@@ -3075,31 +3073,15 @@ btnConfirmExport.addEventListener('click', async () => {
   };
   const vnCompare = (a, b) => (a.label || a.name).localeCompare(b.label || b.name, 'vi');
   
-  // --- SỬA HÀM NÀY ---
-  // Helper lấy chuỗi OT: Lọc ca chưa kết thúc VÀ Sắp xếp lại
+  // Helper lấy chuỗi OT (đã sort)
   const getActiveOtLabel = (shifts) => {
       if (!shifts || !shifts.length) return '';
-
-      // 1. Lọc: Chỉ giữ lại ca có giờ kết thúc > giờ hiện tại
-      let activeShifts = shifts.filter(s => {
-          const shiftEndMins = getTimeValueMinutes(s.end);
-          return shiftEndMins > nowMins;
-      });
-
-      if (activeShifts.length === 0) return '';
-      
-      // 2. Sắp xếp: Đảm bảo 1h30 (25h30) luôn nằm sau 21h30
-      // Sử dụng hàm getTimeValueMinutes để so sánh giá trị phút thực tế
-      activeShifts.sort((a, b) => {
-          return getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start);
-      });
-
+      let activeShifts = [...shifts]; 
+      // Sort: 1h30 (25h30) > 21h
+      activeShifts.sort((a, b) => getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start));
       const label = activeShifts.map(s => `${formatOtTime(s.start)}-${formatOtTime(s.end)}`).join(' | ');
       return `(OT: ${label})`;
   };
-  // -------------------
-  
-  // === Hết Helpers ===
 
   const groupA_data = []; 
   const groupB_data = []; 
@@ -3109,14 +3091,10 @@ btnConfirmExport.addEventListener('click', async () => {
     const st  = normSt(state.statuses[emp.name]);
     const off = st.off;
     const isEvening = eveningAllowed(off) && !!st.evening;
-    
     const otShifts = st.ot || [];
-    
-    // Gọi hàm helper mới đã có sắp xếp
     const activeOtLabel = getActiveOtLabel(otShifts);
     const hasActiveOT = activeOtLabel !== '';
 
-    // ... (Phần logic chia nhóm groupA/groupB giữ nguyên như cũ) ...
     switch (mode) {
       case 'onl_eve': 
         if (EXCLUDED_TEAMS.has(emp.team)) continue;
@@ -3125,45 +3103,52 @@ btnConfirmExport.addEventListener('click', async () => {
         const isOnl = !off && !isEvening;
         const isHalfDayOff = (off === 'morning' || off === 'afternoon');
 
-        if (isEvening) {
-          // Nhóm B: Chiều tối
-          groupB_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
-        } else if (isOnl) {
-          // Nhóm A: Full Hành chính
-          groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${activeOtLabel}`.trim() });
-        } else if (isHalfDayOff) { 
-          // [SỬA ĐỔI]: Nhóm A: OFF nửa ngày (vẫn tính là có làm HC)
-          groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim() });
-        } else if (off && hasActiveOT) { 
-          // Nhóm A: OFF cả ngày nhưng có OT (nếu muốn hiện)
-          groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim() });
-        }
+        if (isEvening) groupB_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
+        else if (isOnl) groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${activeOtLabel}`.trim() });
+        else if (isHalfDayOff) groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim() });
         break;
       
       case 'off_eve': 
-        if (off) {
-           groupA_data.push({ 
-            name: emp.name, 
-            off: off, 
-            label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim(),
-            sortKey: hasActiveOT ? 2 : 1 
-          });
-        } else if (isEvening) {
-          groupB_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
-        }
+        if (off) groupA_data.push({ name: emp.name, off: off, label: `${emp.name} ${offLabel(off)} ${activeOtLabel}`.trim(), sortKey: hasActiveOT ? 2 : 1 });
+        else if (isEvening) groupB_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
         break;
 
       case 'eve_ot': 
-        if (isEvening) {
-          groupA_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
-        } else if (hasActiveOT) {
-          groupB_data.push({ name: emp.name, label: `${emp.name} ${activeOtLabel}`.trim() });
+        if (isEvening) groupA_data.push({ name: emp.name, label: `${emp.name} - Chiều tối ${activeOtLabel}`.trim() });
+        else if (hasActiveOT) groupB_data.push({ name: emp.name, label: `${emp.name} ${activeOtLabel}`.trim() });
+        break;
+
+      // === CASE CHỦ NHẬT (Đã sửa) ===
+      case 'sun_hc_ot':
+        // 1. Nhóm A: Làm HC (Dựa vào trạng thái OFF)
+        // off == 'allday' -> Không làm HC -> Bỏ qua
+        // off == null -> Làm cả ngày
+        // off == 'afternoon' -> Nghỉ chiều = Làm sáng
+        // off == 'morning' -> Nghỉ sáng = Làm chiều
+        
+        if (off !== 'allday') {
+           let note = '';
+           if (off === 'afternoon') note = ' (Làm sáng)'; // Quan trọng: Nghỉ chiều = Làm sáng
+           else if (off === 'morning') note = ' (Làm chiều)'; // Quan trọng: Nghỉ sáng = Làm chiều
+           
+           groupA_data.push({ 
+               name: emp.name, 
+               label: `${emp.name}${note}`.trim() 
+           });
+        }
+
+        // 2. Nhóm B: OT
+        if (hasActiveOT) {
+           groupB_data.push({ 
+               name: emp.name, 
+               label: `${emp.name} ${activeOtLabel}`.trim() 
+           });
         }
         break;
     }
   }
 
-  // Sắp xếp danh sách kết quả (Logic giữ nguyên)
+  // --- SẮP XẾP ---
   if (mode === 'onl_eve') {
     const getSortRank = (off) => (off === null) ? 1 : (off === 'afternoon') ? 2 : (off === 'morning') ? 3 : 4;
     groupA_data.sort((a, b) => {
@@ -3174,26 +3159,36 @@ btnConfirmExport.addEventListener('click', async () => {
     });
   } else if (mode === 'off_eve') {
     groupA_data.sort((a, b) => {
-      const sortKeyA = a.sortKey; 
-      const sortKeyB = b.sortKey; 
+      const sortKeyA = a.sortKey; const sortKeyB = b.sortKey; 
       if (sortKeyA !== sortKeyB) return sortKeyA - sortKeyB;
       const getSortRank = (off) => (off === 'morning') ? 1 : (off === 'afternoon') ? 2 : (off === 'allday') ? 3 : 4;
-      const rankA = getSortRank(a.off);
-      const rankB = getSortRank(b.off);
+      const rankA = getSortRank(a.off); const rankB = getSortRank(b.off);
       if (rankA !== rankB) return rankA - rankB;
       return vnCompare(a, b);
     });
-  } else if (mode === 'eve_ot') {
+  } else {
     groupA_data.sort(vnCompare);
   }
-  
   groupB_data.sort(vnCompare);
 
   // Xuất file/Copy
   function listToString(data) { return data.map(item => item.label).join('\n'); }
 
   const parts = [];
-  if (mode === 'onl_eve') {
+  
+  if (mode === 'sun_hc_ot') {
+      // === FORMAT MỚI CHO CHỦ NHẬT ===
+      if (groupA_data.length > 0) {
+          parts.push('HC:');
+          parts.push(listToString(groupA_data));
+          parts.push('');
+      }
+      if (groupB_data.length > 0) {
+          parts.push('OT:');
+          parts.push(listToString(groupB_data));
+          parts.push('');
+      }
+  } else if (mode === 'onl_eve') {
     if (groupA_data.length) { parts.push(`Hành chính:\n`); parts.push(listToString(groupA_data)); parts.push(''); }
     if (groupB_data.length) { parts.push(`Chiều tối:\n`); parts.push(listToString(groupB_data)); parts.push(''); } 
   } else if (mode === 'off_eve') { 
@@ -3202,9 +3197,10 @@ btnConfirmExport.addEventListener('click', async () => {
   } else if (mode === 'eve_ot') {
     if (groupA_data.length) { parts.push(`Chiều tối:\n`); parts.push(listToString(groupA_data)); parts.push(''); }
     if (groupB_data.length) { parts.push(`OT:\n`); parts.push(listToString(groupB_data)); parts.push(''); }
-  } 
+  }
 
-  const reportText = parts.join('\n').trim() + '\n';
+  const reportText = parts.join('\n').trim();
+
   try {
     if (selectedFormat === 'copy') {
       await window.api.copyText(reportText);
@@ -3282,20 +3278,140 @@ function extractOtFromText(text) {
   return shifts;
 }
 
-// 1. HÀM ĐIỀU PHỐI (Ngắn gọn)
+// --- HÀM XỬ LÝ DÁN THÔNG MINH (ALL-IN-ONE) ---
 async function handlePasteApply() {
   const text = $('#pasteTextarea').value.trim();
   if (!text) return closePasteModal();
 
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   
-  // Kiểm tra: Nếu có dòng nào chứa nhiều ký tự Tab (>5) -> Là bảng Excel
-  const isScheduleTable = lines.some(l => l.split('\t').length > 5);
+  // 1. Nhận diện Excel: Nếu dòng có nhiều hơn 5 dấu Tab -> Là bảng Excel
+  const isExcelTable = lines.some(l => l.split('\t').length > 5);
 
-  if (isScheduleTable) {
-      await handlePasteScheduleTable(lines); // Chạy logic bảng Excel
+  if (isExcelTable) {
+      await handlePasteScheduleTable(lines); // Gọi logic Excel cũ (đã có)
   } else {
-      await handlePasteOtText(lines);      // Chạy logic Text cũ (đã đổi tên)
+      await handlePasteSmartText(lines);     // Gọi logic Text mới
+  }
+}
+
+// --- HÀM XỬ LÝ TEXT THÔNG MINH ---
+async function handlePasteSmartText(lines) {
+  const d = new Date(state.dateISO);
+  const isSunday = d.getDay() === 0;
+
+  // A. NẾU LÀ CHỦ NHẬT: Reset toàn bộ về OFF trước
+  // (Vì CN mặc định nghỉ, chỉ ai có tên trong list mới đi làm)
+  if (isSunday) {
+     (state.employees || []).forEach(emp => {
+         state.statuses[emp.name] = { off: 'allday', evening: false, ot: [] };
+     });
+  }
+
+  let updatedCount = 0;
+  
+  // Map tên để tra cứu
+  const employeeNameMap = new Map();
+  (state.employees || []).forEach(e => {
+    employeeNameMap.set(normalizeNameForMatching(e.name), e.name);
+  });
+
+  for (const line of lines) {
+      // 1. Chuẩn hóa dòng text để dễ xử lý
+      const normLine = normalizeNameForMatching(line);
+      const contentUpper = line.toUpperCase();
+
+      // 2. Dò tìm tên nhân viên trong dòng (Khớp dài nhất)
+      let matchedOriginalName = null;
+      let maxLen = 0;
+
+      for (const [normKey, origName] of employeeNameMap) {
+          if (normLine.startsWith(normKey)) {
+              if (normKey.length > maxLen) {
+                  maxLen = normKey.length;
+                  matchedOriginalName = origName;
+              }
+          }
+      }
+
+      if (!matchedOriginalName) continue; // Không tìm thấy tên -> Bỏ qua
+
+      // Lấy trạng thái hiện tại (Lưu ý: Nếu CN thì đã bị reset về OFF ở bước A)
+      let currentSt = state.statuses[matchedOriginalName] || { off: null, evening: false, ot: [] };
+
+      // --- BƯỚC 3: PHÂN TÍCH NỘI DUNG ---
+      
+      // a. Check Giờ OT (VD: 18h-22h, 20-0h, 8h-12h...)
+      const foundShifts = extractOtFromText(contentUpper);
+      
+      // b. Check Từ khóa
+      const hasBT = contentUpper.includes('BT'); // Bình thường
+      
+      // Check OFF
+      const hasOff = contentUpper.includes('OFF');
+      const hasOffSang = contentUpper.includes('OFF SÁNG') || contentUpper.includes('OFF SANG');
+      const hasOffChieu = contentUpper.includes('OFF CHIỀU') || contentUpper.includes('OFF CHIEU');
+      
+      // Check Chiều tối
+      const hasEve = contentUpper.includes('CHIỀU TỐI') || contentUpper.includes('CHIEU TOI');
+
+      // --- BƯỚC 4: ÁP DỤNG LOGIC ---
+
+      if (isSunday) {
+          // === LOGIC CHỦ NHẬT ===
+          
+          // 1. Xác định có đi làm HC không?
+          // - Có chữ "BT" -> Làm
+          // - Có giờ hành chính trong list OT (8h, 13h) -> Làm
+          const hasHCHours = foundShifts.some(s => s.start.startsWith('08') || s.start.startsWith('13') || s.start.startsWith('8') || s.start.startsWith('13'));
+          
+          if (hasBT || hasHCHours) {
+              currentSt.off = null; // Bỏ OFF -> ONL
+          }
+
+          // 2. Lưu OT (Nếu có)
+          if (foundShifts.length > 0) {
+              currentSt.ot = foundShifts;
+          }
+          
+          // 3. Nếu dòng text chỉ có tên và giờ OT tối (VD: "Tên: 18h-22h")
+          // -> Trạng thái vẫn là OFF (nghỉ ngày), nhưng có OT. (Đúng logic thực tế)
+
+      } else {
+          // === LOGIC NGÀY THƯỜNG (T2-T7) ===
+          
+          // 1. Cập nhật trạng thái OFF (Chỉ cập nhật nếu dòng text có ghi OFF)
+          if (hasOffSang) currentSt.off = 'morning';
+          else if (hasOffChieu) currentSt.off = 'afternoon';
+          else if (hasOff && !hasEve) currentSt.off = 'allday'; // Tránh nhầm "Chiều tối"
+          else if (hasBT) currentSt.off = null; // Có BT -> Bỏ OFF
+
+          // 2. Cập nhật Chiều tối
+          if (hasEve) currentSt.evening = true;
+
+          // 3. Cập nhật OT (Nếu có giờ thì ghi đè OT cũ)
+          if (foundShifts.length > 0) {
+              currentSt.ot = foundShifts;
+          }
+      }
+
+      // Sắp xếp OT: 18h -> 20h -> 0h (24h) -> 1h (25h)
+      currentSt.ot.sort((a, b) => getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start));
+
+      // Lưu lại
+      state.statuses[matchedOriginalName] = currentSt;
+      updatedCount++;
+  }
+
+  await saveDay();
+  renderTable();
+  closePasteModal();
+  
+  const dayLabel = isSunday ? 'Chủ Nhật' : 'Thường';
+  if (updatedCount > 0) {
+      showToast(`✅ Đã cập nhật (${dayLabel}) cho ${updatedCount} nhân viên.`);
+  } else {
+      showToast('⚠️ Không tìm thấy dữ liệu hợp lệ.');
   }
 }
 
@@ -3402,22 +3518,17 @@ async function handlePasteOtText(lines) {
   }
 }
 
-// --- HÀM XỬ LÝ DÁN BẢNG LỊCH TRÌNH (ĐÃ FIX LỖI GIỜ OT) ---
-// --- HÀM XỬ LÝ DÁN BẢNG LỊCH TRÌNH (ĐÃ FIX LỖI "Lỗi giờ / undefined") ---
+// --- HÀM XỬ LÝ DÁN BẢNG LỊCH TRÌNH (FIX: TỰ ĐỘNG DÒ CỘT CHỦ NHẬT & LOGIC BT) ---
 async function handlePasteScheduleTable(lines) {
   const d = new Date(state.dateISO);
   const isSunday = d.getDay() === 0;
 
-  // Nếu là Chủ Nhật, reset toàn bộ về OFF
+  // 1. Reset Chủ Nhật: Mặc định OFF hết, Tắt đèn tối, Xóa OT cũ
   if (isSunday) {
      (state.employees || []).forEach(emp => {
          state.statuses[emp.name] = { off: 'allday', evening: false, ot: [] };
      });
   }
-
-  // Xác định cột bắt đầu
-  let baseIdx = 2; // T7
-  if (isSunday) baseIdx = 11; // CN
 
   let updatedCount = 0;
   const employeeNameMap = new Map();
@@ -3427,96 +3538,98 @@ async function handlePasteScheduleTable(lines) {
 
   for (const line of lines) {
       const parts = line.split('\t');
-      // Bỏ qua header
-      if (parts.length < 2 || parts[1].toUpperCase().includes('HỌ VÀ TÊN')) continue;
-
-      const rawName = parts[1].trim();
-      const originalName = employeeNameMap.get(normalizeNameForMatching(rawName));
+      if (parts.length < 2) continue;
       
+      const rawName = parts[1].trim();
+      // Bỏ qua dòng tiêu đề và dòng Tổng
+      if (!rawName || rawName.toUpperCase().includes('HỌ VÀ TÊN') || rawName.toUpperCase().includes('TỔNG')) continue;
+
+      const originalName = employeeNameMap.get(normalizeNameForMatching(rawName));
       if (!originalName) continue;
 
-      // Helper lấy dữ liệu thô (Status + SL)
-      const getShiftRaw = (offset) => ({ 
-          status: (parts[baseIdx + offset] || '').trim(), 
-          slText: (parts[baseIdx + offset + 1] || '').trim() 
-      });
+      let currentSt = state.statuses[originalName] || { off: 'allday', evening: false, ot: [] };
+      currentSt.ot = []; // Reset OT để nạp mới
 
-      // Cấu hình 4 ca làm việc
-      const shiftsData = [
-          { data: getShiftRaw(0), defH: 8, defM: 0 },   // Sáng
-          { data: getShiftRaw(2), defH: 13, defM: 30 }, // Chiều
-          { data: getShiftRaw(4), defH: 17, defM: 30 }, // Tối
-          { data: getShiftRaw(6), defH: 22, defM: 0 }   // Đêm
+      let isHcMorn = false;
+      let isHcAft = false;
+      
+      // --- THUẬT TOÁN TỰ DÒ CỘT (AUTO-DETECT) ---
+      // Mục tiêu: Tìm xem cột "OT CA SÁNG" của ngày đang chọn nằm ở index nào.
+      let baseIdx = 2; // Mặc định cho Thứ 7 (Cột 2)
+
+      if (isSunday) {
+          // Hàm kiểm tra xem ô này có phải là ô Số Lượng (SL) không
+          // (Ô SL thường là số: 0, 4, 8 hoặc rỗng)
+          const isSLColumn = (idx) => {
+              const val = (parts[idx] || '').trim().replace(',', '.');
+              return !val || !isNaN(parseFloat(val));
+          };
+
+          // Dò tìm vị trí bắt đầu của Chủ Nhật (thường rơi vào 10, 11, hoặc 12)
+          // Ta kiểm tra cặp: [Trạng thái] [SL]
+          // Nếu ô i là Trạng thái (không phải số) VÀ ô i+1 là Số -> Đó là Base
+          
+          if (!isSLColumn(11) && isSLColumn(12)) {
+              baseIdx = 11; // Trường hợp của bạn (Tăng Duy Khánh: Index 10 là khoảng trắng)
+          } else if (!isSLColumn(12) && isSLColumn(13)) {
+              baseIdx = 12; // Trường hợp copy chuẩn không lệch
+          } else if (!isSLColumn(13) && isSLColumn(14)) {
+              baseIdx = 13; // Trường hợp T7 có 5 cột
+          } else {
+              baseIdx = 11; // Fallback về trường hợp phổ biến nhất của bạn
+          }
+      }
+
+      // Cấu hình các ca (Offset tính từ cột Base vừa dò được)
+      const shiftsConfig = [
+          { offset: 0, type: 'morn' },   // Sáng
+          { offset: 2, type: 'aft' },    // Chiều
+          { offset: 4, type: 'eve' },    // Tối
+          { offset: 6, type: 'night' },  // Đêm
+          { offset: 8, type: 'night2' }  // Đêm 2 (nếu có)
       ];
 
-      let currentSt = state.statuses[originalName] || { off: 'allday', evening: false, ot: [] };
-      currentSt.ot = []; // Reset OT
-
-      // Cờ xác định trạng thái làm việc
-      let workMorn = false, workAft = false, workEve = false, workNight = false;
-
-      shiftsData.forEach((shift, idx) => {
-          const { status, slText } = shift.data;
-          const textToScan = `${status} ${slText}`;
+      shiftsConfig.forEach(conf => {
+          const statusCell = (parts[baseIdx + conf.offset] || '').trim(); 
+          const slCell = (parts[baseIdx + conf.offset + 1] || '').trim();
+          const combinedText = `${statusCell} ${slCell}`.toUpperCase();
           
-          let hasWork = false;
-          let hasOT = false;
+          // 1. XỬ LÝ OT (Quét giờ ở TẤT CẢ các cột: Sáng, Chiều, Tối, Đêm)
+          // Tìm giờ dạng: 18-22h, 20-0h, 0h-4h...
+          const foundOts = extractOtFromText(combinedText);
+          if (foundOts.length > 0) {
+              currentSt.ot.push(...foundOts);
+          }
 
-          // 1. Tìm giờ OT dạng text (VD: 17h-21h)
-          const foundShifts = extractOtFromText(textToScan);
-          if (foundShifts.length > 0) {
-              foundShifts.forEach(s => {
-                   const fmt = (t) => t.split(':').map(x => x.padStart(2, '0')).join(':');
-                   // --- FIX QUAN TRỌNG: Lưu dạng Object {start, end} ---
-                   currentSt.ot.push({ start: fmt(s.start), end: fmt(s.end) });
-              });
-              hasWork = true;
-              hasOT = true;
-          } 
-          
-          // 2. Nếu không có text, tìm số giờ (SL)
-          if (!hasOT) {
-              const slVal = parseFloat(slText.replace(',', '.'));
-              if (!isNaN(slVal) && slVal > 0) {
-                  const startMins = shift.defH * 60 + shift.defM;
-                  const endMins = startMins + (slVal * 60);
-                  
-                  let endH = Math.floor(endMins / 60);
-                  let endM = endMins % 60;
-                  if (endH >= 24) endH -= 24;
-
-                  const fmt = (h, m) => `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-                  // --- FIX QUAN TRỌNG: Lưu dạng Object ---
-                  currentSt.ot.push({ start: fmt(shift.defH, shift.defM), end: fmt(endH, endM) });
-                  hasWork = true;
+          // 2. XỬ LÝ HÀNH CHÍNH (Chỉ xét cột SÁNG & CHIỀU)
+          // Nếu cột Sáng có BT -> isHcMorn = true
+          // Nếu cột Chiều có BT -> isHcAft = true
+          if (conf.type === 'morn' || conf.type === 'aft') {
+              if (combinedText.includes('BT')) {
+                  if (conf.type === 'morn') isHcMorn = true;
+                  if (conf.type === 'aft')  isHcAft = true;
               }
           }
-
-          // 3. Kiểm tra "BT" (Bình thường) -> Có làm việc
-          if (status.toUpperCase().includes('BT')) {
-              hasWork = true;
-          }
-
-          if (idx === 0) workMorn = hasWork;
-          if (idx === 1) workAft = hasWork;
-          if (idx === 2) workEve = hasWork;
-          if (idx === 3) workNight = hasWork;
       });
 
-      // Cập nhật trạng thái OFF
-      if (workMorn && workAft) currentSt.off = null;
-      else if (workMorn && !workAft) currentSt.off = 'afternoon';
-      else if (!workMorn && workAft) currentSt.off = 'morning';
-      else if (!workMorn && !workAft) currentSt.off = 'allday';
+      // --- TỔNG HỢP TRẠNG THÁI ---
+      
+      // Tính toán OFF/ONL dựa trên kết quả quét BT
+      if (isHcMorn && isHcAft) {
+          currentSt.off = null; // Có BT Sáng + BT Chiều -> Đi làm cả ngày (ONL)
+      } else if (isHcMorn && !isHcAft) {
+          currentSt.off = 'afternoon'; // Chỉ BT Sáng -> Làm sáng, Nghỉ chiều
+      } else if (!isHcMorn && isHcAft) {
+          currentSt.off = 'morning'; // Chỉ BT Chiều -> Làm chiều, Nghỉ sáng
+      } else {
+          currentSt.off = 'allday'; // Không có BT -> Nghỉ cả ngày
+      }
 
-      // Cập nhật trạng thái Chiều tối
-      if (workEve || workNight) currentSt.evening = true;
-      else currentSt.evening = false;
+      // Đèn chiều tối LUÔN TẮT (theo yêu cầu của bạn)
+      currentSt.evening = false; 
 
-      // Sắp xếp OT (Dùng hàm getTimeValueMinutes để xếp đúng giờ qua đêm)
-      currentSt.ot.sort((a, b) => {
-          return getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start);
-      });
+      // Sắp xếp lại OT (để 20h lên trước 0h)
+      currentSt.ot.sort((a, b) => getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start));
 
       state.statuses[originalName] = currentSt;
       updatedCount++;
@@ -3525,7 +3638,13 @@ async function handlePasteScheduleTable(lines) {
   await saveDay();
   renderTable();
   closePasteModal();
-  showToast(`✅ Đã cập nhật ${updatedCount} nhân viên!`);
+  
+  const dayName = isSunday ? 'Chủ Nhật' : 'Thứ 7';
+  if (updatedCount > 0) {
+      showToast(`✅ Đã cập nhật lịch ${dayName} cho ${updatedCount} nhân viên!`);
+  } else {
+      showToast(`⚠️ Không tìm thấy dữ liệu phù hợp.`);
+  }
 }
 
 function setupChipFilters() {
@@ -3979,7 +4098,7 @@ function analyzePullData() {
   renderPullResult('HC', missingHC);
   renderPullResult('Eve', missingEve);
 
-  $('#pullCheckResult').style.display = 'flex';
+  $('#pullCheckResult').style.display = 'block';
 }
 
 // 2. Hàm Render Kết Quả Pull (Đã Fix lỗi tìm kiếm Tiếng Việt)
