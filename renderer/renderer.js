@@ -722,18 +722,24 @@ function normalizeOtInput(timeStr) {
   if (!timeStr) return null;
   timeStr = timeStr.trim();
   
-  // [SỬA LỖI] Regex đúng: (18)(h)(30) hoặc (18)(h) hoặc (18)()
+  // Regex đúng: (18)(h)(30) hoặc (18)(h) hoặc (18)()
   const match = timeStr.match(/^(\d{1,2})(?:(?:h|:)(\d{2}))?h?$/);
-  // Group 1: Giờ (18)
-  // Group 3: Phút (30) (hoặc undefined nếu là 18h hoặc 18)
 
   if (!match) return null;
 
-  const h = (match[1] || '00').padStart(2, '0');
-  const m = (match[3] || '00').padEnd(2, '0'); // Lấy group 3 (phút)
+  let hStr = match[1] || '00';
+  
+  // --- XỬ LÝ CHUYỂN ĐỔI 24h -> 00h ---
+  if (hStr === '24') hStr = '00';
+  
+  const h = hStr.padStart(2, '0');
+  
+  // [Đã fix lỗi cũ]: Group chứa phút là match[2], không phải match[3]
+  const m = (match[2] || '00').padEnd(2, '0'); 
   
   const finalTime = `${h}:${m}`;
   
+  // Kiểm tra tính hợp lệ của giờ HH:mm chuẩn
   if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(finalTime)) return null;
   
   return finalTime;
@@ -1791,14 +1797,20 @@ function renderTable() {
         return `<span class="badge-ot">${timeLabel}</span>`;
       }).join(' ');
 
-      // OFF select (Giữ nguyên)
+      // =======================================================
+      // TẠO NÚT BẤM (KHÔNG CHỨA MENU BÊN TRONG NỮA)
+      // =======================================================
+      let offText = '✅ Đang làm';
+      let offClass = 'off-none';
+      if (offVal === 'morning') { offText = '🌤️ OFF Sáng'; offClass = 'off-morning'; }
+      else if (offVal === 'afternoon') { offText = '🌥️ OFF Chiều'; offClass = 'off-afternoon'; }
+      else if (offVal === 'allday') { offText = '❌ OFF Cngày'; offClass = 'off-allday'; }
+
       const offSelect = `
-        <select class="sel-off">
-          <option value="" ${offVal==null?'selected':''}>—</option>
-          <option value="morning" ${offVal==='morning'?'selected':''}>OFF sáng</option>
-          <option value="afternoon" ${offVal==='afternoon'?'selected':''}>OFF chiều</option>
-          <option value="allday" ${offVal==='allday'?'selected':''}>OFF</option>
-        </select>`;
+        <div class="custom-off-select" data-name="${emp.name}" data-val="${offVal || ''}">
+          <div class="off-trigger ${offClass}">${offText}</div>
+        </div>
+      `;
 
       // Evening switch (Giữ nguyên)
       const eveSwitch = `
@@ -1813,25 +1825,38 @@ function renderTable() {
         const totalDuration = st.ot.reduce((total, shift) => {
           return total + calculateDuration(shift.start, shift.end);
         }, 0);
+        
         if (totalDuration > 0) {
-          otButtonHtml = `<button class="btn-ot filled" data-name="${emp.name}">${totalDuration.toFixed(1)}h</button>`;
+          // Trạng thái đã có giờ: Hiển thị "8.0h ✎"
+          otButtonHtml = `
+            <button class="btn-ot filled" data-name="${emp.name}" title="Nhấn để Sửa / Quản lý ca OT">
+              ${totalDuration.toFixed(1)}h <span>✎</span>
+            </button>`;
         } else {
-          otButtonHtml = `<button class="btn-ot empty" data-name="${emp.name}">Lỗi giờ</button>`;
+          // Trạng thái lỗi giờ (âm)
+          otButtonHtml = `
+            <button class="btn-ot empty" data-name="${emp.name}" style="color:red; border-color:red;">
+              ⚠️ Lỗi giờ
+            </button>`;
         }
       } else {
-        otButtonHtml = `<button class="btn-ot empty" data-name="${emp.name}">+</button>`;
+        // Trạng thái chưa có OT: Hiển thị rõ chữ "Thêm OT"
+        otButtonHtml = `
+          <button class="btn-ot empty" data-name="${emp.name}" title="Nhấn để Thêm ca OT">
+            ➕ Thêm OT
+          </button>`;
       }
 
-      return `
+     return `
         <tr class="${rowClass}" data-name="${emp.name}">
-          <td>${idx + 1}</td>
+          <td style="text-align: center;">${idx + 1}</td>
           <td class="col-name">${emp.name} ${eveningBadge} ${otBadges}</td>
-          <td>${teamBadge}</td>
-          <td>${offSelect}</td>
-          <td>${eveSwitch}</td>
-          <td>${otButtonHtml}</td> 
-          <td class="actions-cell">
-            <span class="row-actions">
+          <td style="text-align: center;">${teamBadge}</td>
+          <td style="text-align: center;">${offSelect}</td>
+          <td style="text-align: center;">${eveSwitch}</td>
+          <td style="text-align: center;">${otButtonHtml}</td> 
+          <td class="actions-cell" style="text-align: center;">
+            <span class="row-actions" style="justify-content: center;">
               <button class="mini-btn action-edit" title="Sửa">✏️</button>
               <button class="mini-btn action-del" title="Xóa">🗑️</button>
             </span>
@@ -3118,26 +3143,18 @@ btnConfirmExport.addEventListener('click', async () => {
         else if (hasActiveOT) groupB_data.push({ name: emp.name, label: `${emp.name} ${activeOtLabel}`.trim() });
         break;
 
-      // === CASE CHỦ NHẬT (Đã sửa) ===
+      // === CASE CHỦ NHẬT ===
       case 'sun_hc_ot':
-        // 1. Nhóm A: Làm HC (Dựa vào trạng thái OFF)
-        // off == 'allday' -> Không làm HC -> Bỏ qua
-        // off == null -> Làm cả ngày
-        // off == 'afternoon' -> Nghỉ chiều = Làm sáng
-        // off == 'morning' -> Nghỉ sáng = Làm chiều
-        
         if (off !== 'allday') {
            let note = '';
-           if (off === 'afternoon') note = ' (Làm sáng)'; // Quan trọng: Nghỉ chiều = Làm sáng
-           else if (off === 'morning') note = ' (Làm chiều)'; // Quan trọng: Nghỉ sáng = Làm chiều
+           if (off === 'afternoon') note = ' (Làm sáng)';
+           else if (off === 'morning') note = ' (Làm chiều)';
            
            groupA_data.push({ 
                name: emp.name, 
                label: `${emp.name}${note}`.trim() 
            });
         }
-
-        // 2. Nhóm B: OT
         if (hasActiveOT) {
            groupB_data.push({ 
                name: emp.name, 
@@ -3145,6 +3162,15 @@ btnConfirmExport.addEventListener('click', async () => {
            });
         }
         break;
+        
+      // 👇 CASE MỚI: CHỈ XUẤT OT 👇
+      case 'ot_only':
+        if (hasActiveOT) {
+          // Chỉ lấy những ai có OT và ném vào Group A
+          groupA_data.push({ name: emp.name, label: `${emp.name} ${activeOtLabel}`.trim() });
+        }
+        break;
+      // ☝️ KẾT THÚC CASE MỚI ☝️
     }
   }
 
@@ -3167,6 +3193,7 @@ btnConfirmExport.addEventListener('click', async () => {
       return vnCompare(a, b);
     });
   } else {
+    // Dành cho sun_hc_ot, eve_ot và ot_only
     groupA_data.sort(vnCompare);
   }
   groupB_data.sort(vnCompare);
@@ -3177,7 +3204,6 @@ btnConfirmExport.addEventListener('click', async () => {
   const parts = [];
   
   if (mode === 'sun_hc_ot') {
-      // === FORMAT MỚI CHO CHỦ NHẬT ===
       if (groupA_data.length > 0) {
           parts.push('HC:');
           parts.push(listToString(groupA_data));
@@ -3197,6 +3223,13 @@ btnConfirmExport.addEventListener('click', async () => {
   } else if (mode === 'eve_ot') {
     if (groupA_data.length) { parts.push(`Chiều tối:\n`); parts.push(listToString(groupA_data)); parts.push(''); }
     if (groupB_data.length) { parts.push(`OT:\n`); parts.push(listToString(groupB_data)); parts.push(''); }
+  } else if (mode === 'ot_only') {
+    // 👇 LOGIC ĐỊNH DẠNG XUẤT CHO "CHỈ XUẤT OT" 👇
+    if (groupA_data.length) { 
+        parts.push(`OT:\n`); 
+        parts.push(listToString(groupA_data)); 
+        parts.push(''); 
+    }
   }
 
   const reportText = parts.join('\n').trim();
@@ -3251,23 +3284,27 @@ function extractOtFromText(text) {
   
   let match;
   while ((match = otRegex.exec(text)) !== null) {
-    // Group 1,2: Giờ, Phút bắt đầu
-    const startH = (match[1] || '0').padStart(2, '0');
+    let startH = match[1] || '0';
     const startM = (match[2] || '00').padEnd(2, '0');
     
-    // Group 3,4: Giờ, Phút kết thúc
-    const endH = (match[3] || '0').padStart(2, '0');
+    let endH = match[3] || '0';
     const endM = (match[4] || '00').padEnd(2, '0');
 
-    // Bỏ qua nếu định dạng giờ không tưởng (vd: 88h)
-    if (parseInt(startH) > 23 || parseInt(endH) > 23) continue;
+    // Bỏ qua nếu định dạng giờ không tưởng, nhưng NỚI LỎNG cho phép số 24
+    if (parseInt(startH) > 24 || parseInt(endH) > 24) continue;
+
+    // --- XỬ LÝ CHUYỂN ĐỔI 24h -> 00h ---
+    if (startH === '24') startH = '00';
+    if (endH === '24') endH = '00';
+
+    // Format lại thành 2 chữ số
+    startH = startH.padStart(2, '0');
+    endH = endH.padStart(2, '0');
 
     const start = `${startH}:${startM}`;
     const end = `${endH}:${endM}`;
     
-    // Tính thời lượng
-    // Hàm calculateDuration có sẵn trong code cũ đã xử lý logic qua đêm:
-    // Nếu End < Start (vd 01:30 < 21:30) => Tự động +24h cho End.
+    // Tính thời lượng (đã tự động xử lý qua đêm 20h -> 00h)
     const duration = calculateDuration(start, end);
 
     // Chỉ lấy ca > 0 và <= 6 tiếng (nới lỏng lên 6h để bắt các ca gộp nếu có)
@@ -3279,6 +3316,7 @@ function extractOtFromText(text) {
 }
 
 // --- HÀM XỬ LÝ DÁN THÔNG MINH (ALL-IN-ONE) ---
+// --- HÀM XỬ LÝ DÁN THÔNG MINH (ALL-IN-ONE) ---
 async function handlePasteApply() {
   const text = $('#pasteTextarea').value.trim();
   if (!text) return closePasteModal();
@@ -3287,12 +3325,115 @@ async function handlePasteApply() {
   
   // 1. Nhận diện Excel: Nếu dòng có nhiều hơn 5 dấu Tab -> Là bảng Excel
   const isExcelTable = lines.some(l => l.split('\t').length > 5);
+  
+  // 2. Nhận diện bảng Tết: Có chứa chữ "TẾT" và chữ "năm" ở các dòng đầu tiên
+  const isTetTable = lines.slice(0, 3).some(l => l.toUpperCase().includes('TẾT') && l.toLowerCase().includes('năm'));
 
-  if (isExcelTable) {
-      await handlePasteScheduleTable(lines); // Gọi logic Excel cũ (đã có)
+  if (isTetTable) {
+      await handlePasteTetScheduleTable(lines); // Logic Bảng Lịch Tết (Nhiều ngày)
+  } else if (isExcelTable) {
+      await handlePasteScheduleTable(lines);    // Logic Bảng Cuối tuần (Thứ 7 / CN)
   } else {
-      await handlePasteSmartText(lines);     // Gọi logic Text mới
+      await handlePasteSmartText(lines);        // Logic Dán Text nhanh
   }
+}
+
+// --- HÀM XỬ LÝ DÁN LỊCH TẾT (TỰ ĐỘNG LẤY ĐÚNG NGÀY ĐANG CHỌN) ---
+// --- HÀM XỬ LÝ DÁN LỊCH TẾT (MẶC ĐỊNH OFF HẾT, CHỈ LẤY OT) ---
+async function handlePasteTetScheduleTable(lines) {
+  // 1. Xác định ngày đang chọn trên giao diện để tìm trong bảng Excel
+  const dStr = state.dateISO; // VD: "2026-02-14"
+  const [y, m, d] = dStr.split('-');
+  
+  // Tạo chuỗi tìm kiếm tự động bỏ số 0 ở đầu (VD: "ngày 14 tháng 2 năm 2026")
+  const searchStr = `ngày ${parseInt(d)} tháng ${parseInt(m)} năm ${y}`;
+  
+  let baseIdx = -1;
+
+  // 2. Dò tìm xem cột của ngày đang chọn nằm ở đâu trong bảng Tết
+  for (let i = 0; i < Math.min(3, lines.length); i++) {
+      const parts = lines[i].split('\t');
+      for (let c = 0; c < parts.length; c++) {
+          if (parts[c].toLowerCase().includes(searchStr)) {
+              baseIdx = c;
+              break;
+          }
+      }
+      if (baseIdx !== -1) break;
+  }
+
+  if (baseIdx === -1) {
+      showToast(`⚠️ Không tìm thấy dữ liệu của "${searchStr}" trong bảng dán! Vui lòng kiểm tra lại.`);
+      return;
+  }
+
+  // 3. Reset toàn bộ danh sách về OFF (Vì Tết mặc định là nghỉ)
+  (state.employees || []).forEach(emp => {
+      state.statuses[emp.name] = { off: 'allday', evening: false, ot: [] };
+  });
+
+  let updatedCount = 0;
+  const employeeNameMap = new Map();
+  (state.employees || []).forEach(e => {
+    employeeNameMap.set(normalizeNameForMatching(e.name), e.name);
+  });
+
+  for (const line of lines) {
+      const parts = line.split('\t');
+      if (parts.length < 2) continue;
+      
+      // Xác định cột chứa tên (Hỗ trợ cả trường hợp có cột STT và không có cột STT)
+      let nameIdx = 0;
+      if (parts[0] && !isNaN(parseInt(parts[0])) && parts[1]) {
+          nameIdx = 1; // Có cột STT
+      }
+      
+      const rawName = parts[nameIdx].trim();
+      // Bỏ qua các dòng tiêu đề
+      if (!rawName || rawName.toUpperCase().includes('TÊN') || rawName.toUpperCase().includes('SÁNG') || rawName.toUpperCase().includes('TẾT')) continue;
+
+      const originalName = employeeNameMap.get(normalizeNameForMatching(rawName));
+      if (!originalName) continue;
+
+      let currentSt = state.statuses[originalName] || { off: 'allday', evening: false, ot: [] };
+      currentSt.ot = []; // Reset OT để nạp mới
+
+      // Cấu hình các cột (Theo mẫu Tết: Sáng / Chiều / Tối)
+      const shiftsConfig = [
+          { offset: 0, type: 'morn' }, // Cột Sáng
+          { offset: 2, type: 'aft' },  // Cột Chiều
+          { offset: 4, type: 'eve' }   // Cột Tối
+      ];
+
+      shiftsConfig.forEach(conf => {
+          const textCell = (parts[baseIdx + conf.offset] || '').trim();
+          const slCell = (parts[baseIdx + conf.offset + 1] || '').trim();
+          const combinedText = `${textCell} ${slCell}`.toUpperCase();
+          
+          // A. Chỉ tìm giờ OT trong ô (VD: 8h-12h, 17-21h) và push thẳng vào mảng OT
+          const foundOts = extractOtFromText(combinedText);
+          if (foundOts.length > 0) {
+              currentSt.ot.push(...foundOts);
+          }
+      });
+
+      // --- TỔNG HỢP TRẠNG THÁI ---
+      // Khóa cứng Trạng thái Hành chính và Chiều tối: Luôn là OFF và tắt đèn mặt trăng
+      currentSt.off = 'allday';
+      currentSt.evening = false; 
+      
+      // Sắp xếp lại OT theo thứ tự thời gian
+      currentSt.ot.sort((a, b) => getTimeValueMinutes(a.start) - getTimeValueMinutes(b.start));
+
+      state.statuses[originalName] = currentSt;
+      updatedCount++;
+  }
+
+  await saveDay();
+  renderTable();
+  closePasteModal();
+  
+  showToast(`✅ Đã cập nhật Lịch Tết (${searchStr}) cho ${updatedCount} nhân viên!`);
 }
 
 // --- HÀM XỬ LÝ TEXT THÔNG MINH ---
@@ -4479,6 +4620,97 @@ async function copyKpiToClipboard() {
     showToast('❌ Lỗi copy.');
   }
 }
+
+// --- LOGIC MENU RỜI (GẮN THẲNG VÀO BODY ĐỂ KHÔNG BAO GIỜ BỊ CHE) ---
+let sharedOffDropdown = document.getElementById('shared-off-dropdown');
+if (!sharedOffDropdown) {
+    sharedOffDropdown = document.createElement('div');
+    sharedOffDropdown.id = 'shared-off-dropdown';
+    sharedOffDropdown.className = 'off-dropdown-menu';
+    sharedOffDropdown.innerHTML = `
+        <div class="off-option" data-value="">✅ Đang làm</div>
+        <div class="off-option" data-value="allday">❌ OFF Cả ngày</div>
+        <div class="off-divider">--- Nghỉ nửa ngày ---</div>
+        <div class="off-option" data-value="morning">🌤️ OFF Sáng</div>
+        <div class="off-option" data-value="afternoon">🌥️ OFF Chiều</div>
+    `;
+    document.body.appendChild(sharedOffDropdown); // Gắn thẳng ra ngoài Body
+}
+
+let currentSelectTarget = null;
+
+document.addEventListener('click', async (e) => {
+    // 1. Bấm vào nút mở Menu
+    const trigger = e.target.closest('.off-trigger');
+    if (trigger) {
+        e.stopPropagation(); // Ngăn click lan ra ngoài
+        const wrapper = trigger.closest('.custom-off-select');
+        currentSelectTarget = wrapper.dataset.name;
+        
+        // Đổi màu dòng đang được chọn
+        const currentVal = wrapper.dataset.val;
+        sharedOffDropdown.querySelectorAll('.off-option').forEach(opt => {
+            if (opt.dataset.value === currentVal) opt.classList.add('selected');
+            else opt.classList.remove('selected');
+        });
+
+        // Bật menu lên để lấy kích thước
+        sharedOffDropdown.style.display = 'flex';
+        
+        // TÍNH TOÁN TỌA ĐỘ VÀ GẮN VÀO MÀN HÌNH
+        const rect = wrapper.getBoundingClientRect();
+        let top = rect.bottom + window.scrollY + 4;
+        let left = rect.left + window.scrollX;
+        
+        // Nếu sát đáy màn hình quá thì hất menu lên trên
+        if (top + sharedOffDropdown.offsetHeight > window.innerHeight + window.scrollY) {
+            top = rect.top + window.scrollY - sharedOffDropdown.offsetHeight - 4;
+        }
+        
+        sharedOffDropdown.style.top = top + 'px';
+        sharedOffDropdown.style.left = left + 'px';
+        sharedOffDropdown.style.width = Math.max(rect.width, 140) + 'px';
+        
+        // Thêm viền sáng cho nút đang mở
+        document.querySelectorAll('.custom-off-select.open').forEach(el => el.classList.remove('open'));
+        wrapper.classList.add('open');
+        return;
+    }
+
+    // 2. Bấm chọn trạng thái
+    const option = e.target.closest('#shared-off-dropdown .off-option');
+    if (option && currentSelectTarget) {
+        const val = option.dataset.value;
+        const name = currentSelectTarget;
+        
+        state.statuses[name] = state.statuses[name] || { off: null, evening: false, ot: [] };
+        state.statuses[name].off = val === "" ? null : val;
+        
+        // Ẩn menu đi
+        sharedOffDropdown.style.display = 'none';
+        currentSelectTarget = null;
+        
+        await saveDay();
+        renderTable();
+        return;
+    }
+
+    // 3. Click ra ngoài thì đóng menu
+    if (sharedOffDropdown.style.display === 'flex') {
+        sharedOffDropdown.style.display = 'none';
+        currentSelectTarget = null;
+        document.querySelectorAll('.custom-off-select.open').forEach(el => el.classList.remove('open'));
+    }
+});
+
+// 4. Lăn chuột bảng thì tự đóng menu (Chống menu trôi lơ lửng)
+document.addEventListener('scroll', () => {
+    if (sharedOffDropdown && sharedOffDropdown.style.display === 'flex') {
+        sharedOffDropdown.style.display = 'none';
+        currentSelectTarget = null;
+        document.querySelectorAll('.custom-off-select.open').forEach(el => el.classList.remove('open'));
+    }
+}, true);
 
 // --- XỬ LÝ SỰ KIỆN ---
 
