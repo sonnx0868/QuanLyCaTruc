@@ -22,25 +22,24 @@ jobs:
         run: |
           npm install
           npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/preferences
+          npm install -g @capacitor/assets # Cài công cụ tự tạo icon
 
-      # Re-configure Capacitor
-      - name: Setup Capacitor Config
+      - name: Setup iOS Platform
         run: |
           rm -rf ios
-          rm -f capacitor.config.ts capacitor.config.json
-          npx cap init QuanLyCaTruc com.sonnx.quanlycatruc --web-dir=renderer
-
-      # Create iOS platform and sync
-      - name: Sync iOS
-        run: |
           npx cap add ios
           npx cap sync ios
 
-      # Build Archive (SỬA Ở ĐÂY: Đổi workspace thành project)
+      # SỬA Ở ĐÂY: Tạo thư mục ảo và copy icon.png từ thư mục gốc vào
+      - name: Generate App Icons
+        run: |
+          mkdir -p assets
+          cp icon.png assets/icon.png
+          npx @capacitor/assets generate --ios
+
       - name: Build xcode archive
         run: |
           cd ios/App
-          # Vì Capacitor 8 dùng SPM nên không có workspace, dùng project thay thế
           xcodebuild -project App.xcodeproj \
             -scheme App \
             -sdk iphoneos \
@@ -51,7 +50,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-      # Package IPA (Unsigned)
       - name: Create IPA
         run: |
           cd ios/App
@@ -59,7 +57,6 @@ jobs:
           cp -r build/App.xcarchive/Products/Applications/App.app Payload/
           zip -r App-unsigned.ipa Payload
 
-      # Upload Artifact
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
