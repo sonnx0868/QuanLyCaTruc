@@ -259,9 +259,72 @@ tbody tr:hover { background: #f9fafb; }
 .row-off select, .row-off .btn-ot { opacity: 0.7; }
 
 /* Controls inside table */
-select.sel-off {
-  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
-  background: white; font-size: 12px; width: 100%;
+/* Controls inside table */
+/* ========================================= */
+/* CSS MENU RỜI (GẮN TRÊN BODY)              */
+/* ========================================= */
+.custom-off-select {
+  position: relative;
+  width: 120px;
+  margin: 0 auto;
+  user-select: none;
+}
+
+/* Nút bấm */
+.off-trigger {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s;
+}
+.off-trigger::after {
+  content: "▼"; font-size: 9px; opacity: 0.6; margin-left: 4px;
+}
+.custom-off-select.open .off-trigger { 
+  border-color: var(--primary); 
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); 
+}
+
+/* Bảng màu Nút */
+.off-trigger.off-none { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+.off-trigger.off-morning { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+.off-trigger.off-afternoon { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+.off-trigger.off-allday { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+/* Menu lơ lửng ngoài màn hình */
+.off-dropdown-menu {
+  position: absolute; /* Gắn vào body */
+  z-index: 9999999;   /* Lớp cao nhất tuyệt đối */
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: none;
+  flex-direction: column;
+  padding: 6px;
+  min-width: 140px;
+}
+
+/* Dòng chữ trong Menu */
+.off-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #374151;
+}
+.off-option:hover { background: #f3f4f6; color: var(--primary); }
+.off-option.selected { background: #eef2ff; color: var(--primary); font-weight: 600; }
+
+.off-divider {
+  font-size: 11px; color: #9ca3af; text-align: center; padding: 4px 0; cursor: default;
 }
 .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
 .switch input { opacity: 0; width: 0; height: 0; } /* Ẩn input gốc */
