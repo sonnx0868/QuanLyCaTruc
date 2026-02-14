@@ -96,10 +96,10 @@
             <tr>
               <th style="width: 50px" id="th-stt" class="sort-header active" title="Sắp xếp ưu tiên">#</th>
               <th class="col-name sort-header" id="th-name" title="Sắp xếp tên (A-Z)">Nhân viên</th>
-              <th style="width:140px" id="th-team" class="sort-header" title="Sắp xếp đội">Đội</th>
+              <th style="width:90px" id="th-team" class="sort-header" title="Sắp xếp đội">Đội</th>
               <th style="width:130px">Trạng thái</th>
               <th style="width:100px">Chiều tối</th>
-              <th style="width:100px">OT</th>
+              <th style="width:140px">OT</th>
               <th style="width:100px">Thao tác</th>
             </tr>
           </thead>
@@ -299,21 +299,21 @@
         </div>
         
         <div id="detailedReportOptions" class="mt-4">
-         <div class="opt-label">Nội dung</div>
-         <div class="radio-stack">
-            <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> ☀️ HC + 🌙 Chiều tối</label>
-            <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> ❌ OFF + 🌙 Chiều tối</label>
-            <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> 🌙 Chiều tối + 💲 OT</label>
-            
-            <label class="radio-label"><input type="radio" name="detailedMode" value="sun_hc_ot"> 📅 Chủ Nhật (Làm bù + OT)</label>
-            </div>
-         
-         <div class="opt-label mt-4">Định dạng</div>
-           <div class="radio-stack">
-              <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> 📋 Copy vào Clipboard</label>
-              <label class="radio-label"><input type="radio" name="exportFormat" value="txt"> 📄 Lưu file .txt</label>
-           </div>
-        </div>
+    <div class="opt-label">Nội dung</div>
+    <div class="radio-stack">
+        <label class="radio-label"><input type="radio" name="detailedMode" value="onl_eve" checked> ☀️ HC + 🌙 Chiều tối</label>
+        <label class="radio-label"><input type="radio" name="detailedMode" value="off_eve"> ❌ OFF + 🌙 Chiều tối</label>
+        <label class="radio-label"><input type="radio" name="detailedMode" value="eve_ot"> 🌙 Chiều tối + 💲 OT</label>
+        <label class="radio-label"><input type="radio" name="detailedMode" value="sun_hc_ot"> 📅 Chủ Nhật (Làm bù + OT)</label>
+        <label class="radio-label"><input type="radio" name="detailedMode" value="ot_only"> 💲 Chỉ xuất OT</label>
+    </div>
+    
+    <div class="opt-label mt-4">Định dạng</div>
+    <div class="radio-stack">
+        <label class="radio-label"><input type="radio" name="exportFormat" value="copy" checked> 📋 Copy vào Clipboard</label>
+        <label class="radio-label"><input type="radio" name="exportFormat" value="txt"> 📄 Lưu file .txt</label>
+    </div>
+</div>
       </div>
       <div class="modal-footer">
         <button id="btnCancelExport" class="btn">Đóng</button>
@@ -368,10 +368,12 @@
         <div id="otEditForm" class="ot-form hidden">
            <div class="subttl" id="otFormTitle">Ca mới</div>
            <select id="otPreset" class="input-std mb-2">
-             <option value="custom">-- Tự nhập --</option>
+             <option value="custom">-- Chọn ca OT hoặc tự nhập --</option>
+             <option value="08:00-12:00">8h - 12h (4h)</option>
+             <option value="13:00-17:00">13h - 17h (4h)</option>
              <option value="17:00-21:00">17h - 21h (4h)</option>
-             <option value="18:00-22:00">18h - 22h (4h)</option>
-             <option value="19:00-23:00">19h - 23h (4h)</option>
+             <option value="21:00-01:00">21h - 1h (4h)</option>
+             <option value="22:00-02:00">22h - 2h (4h)</option>
            </select>
            <div id="otManualInputs" class="row-2col">
               <input type="text" id="otStart" class="input-std" placeholder="Bắt đầu (17:30)" />
