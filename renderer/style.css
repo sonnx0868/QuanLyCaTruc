@@ -94,9 +94,10 @@ body {
 
 /* --- LAYOUT --- */
 .appbar {
-  height: 60px; background: white; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px; z-index: 10;
+  padding-top: env(safe-area-inset-top, 20px) !important;
+  /* (Tuỳ chọn) Đảm bảo chiều cao của header tự động co giãn chứa khoảng trống này */
+  height: auto !important; 
+  min-height: calc(60px + env(safe-area-inset-top, 20px));
 }
 .appbar-left { display: flex; align-items: center; gap: 12px; }
 .app-logo { font-size: 24px; }
@@ -1419,10 +1420,8 @@ body {
   background-color: var(--bg); /* Lấp đầy khoảng trống bằng màu nền */
 }
 
-.appbar {
-  /* Tăng chiều cao thanh menu để chứa cả tai thỏ */
-  height: calc(60px + env(safe-area-inset-top));
-  padding-top: env(safe-area-inset-top);
+.statusbar {
+  padding-bottom: env(safe-area-inset-bottom, 10px) !important;
 }
 
 /* Khi ghim ra màn hình (Mini Mode) thì trả lại full màn hình */
