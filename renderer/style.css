@@ -94,10 +94,9 @@ body {
 
 /* --- LAYOUT --- */
 .appbar {
-  padding-top: env(safe-area-inset-top, 20px) !important;
-  /* (Tuỳ chọn) Đảm bảo chiều cao của header tự động co giãn chứa khoảng trống này */
-  height: auto !important; 
-  min-height: calc(60px + env(safe-area-inset-top, 20px));
+  height: 60px; background: white; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; z-index: 10;
 }
 .appbar-left { display: flex; align-items: center; gap: 12px; }
 .app-logo { font-size: 24px; }
@@ -353,13 +352,6 @@ tbody tr:hover { background: #f9fafb; }
 }
 .btn-ot:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
 .btn-ot.filled { border-style: solid; background: var(--warn-bg); color: #b45309; border-color: #fde68a; }
-
-/* --- STATUS BAR --- */
-.statusbar {
-  height: 30px; background: white; border-top: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  font-size: 11px; color: var(--text-muted);
-}
 
 /* --- MODALS (Modern) --- */
 .modal {
@@ -1421,7 +1413,9 @@ body {
 }
 
 .statusbar {
-  padding-bottom: env(safe-area-inset-bottom, 10px) !important;
+  height: 30px; background: white; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: 11px; color: var(--text-muted);
 }
 
 /* Khi ghim ra màn hình (Mini Mode) thì trả lại full màn hình */
